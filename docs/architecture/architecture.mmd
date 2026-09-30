@@ -1,0 +1,75 @@
+---
+title: "Bookplate Architecture Diagram"
+config:
+  look: classic
+  flowchart:
+    curve: basis
+    nodeSpacing: 40
+    rankSpacing: 50
+    wrappingWidth: 400
+---
+flowchart LR
+  %% ---------- Computer 1: the iPhone ----------
+  subgraph PHONE["CLIENT"]
+    direction TB
+    subgraph APP["Bookplate iOS App"]
+      direction TB
+      views["<b>SwiftUI Views</b><br/>Library · Shelves & Decoration<br/>Book Detail / Ratings · Sign-in"]
+      logic["<b>App Logic / ViewModels</b><br/>(Swift)"]
+    end
+    sdk["<b>Supabase Swift SDK</b><br/>keeps session on device:<br/>JWT access + refresh token"]
+  end
+
+  %% ---------- Network ----------
+  net(("<b>Internet</b><br/>HTTPS"))
+
+  %% ---------- Computer 2: Supabase cloud ----------
+  subgraph SUPA["SERVER — Supabase Cloud"]
+    direction TB
+    auth["<b>Supabase Auth</b><br/>checks email + password,<br/>issues / refreshes JWT"]
+    subgraph DB["PostgreSQL (via Supabase REST API)"]
+      direction TB
+      tables[("<b>Tables</b><br/>Profiles · Books · Shelves<br/>Decorations · Ratings · Reading Data<br/><br/><b>Row Level Security</b><br/>user id read from JWT:<br/>auth.uid() = user_id → only your own rows")]
+    end
+    storage[("<b>Storage Buckets</b><br/>book covers · decoration images")]
+  end
+
+  %% ---------- On-device flows (solid) ----------
+  views <--> logic
+  APP <-- "queries, uploads /<br/>models (Swift structs)" --> sdk
+
+  %% ---------- Over the Internet (dotted) ----------
+  PHONE <-. "all data calls carry<br/>Authorization: Bearer JWT" .-> net
+  net <-. "② CRUD request (JSON) →<br/>← rows (JSON)" .-> tables
+  net <-. "① email + password →<br/>← JWT + refresh token<br/>④ refresh token → new JWT" .-> auth
+  net <-. "③ image upload →<br/>← image files / URLs" .-> storage
+
+  %% ---------- Server-internal ----------
+
+  %% ---------- Legend ----------
+  subgraph LEGEND["Legend"]
+    direction LR
+    l1["our work"]
+    l2["3rd-party"]
+    l3["── on device &nbsp; ┈┈ internet"]
+    l1 ~~~ l2 ~~~ l3
+  end
+
+  %% ---------- Styling ----------
+  classDef ours fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#0b1b3f
+  classDef inherited fill:#e5e7eb,stroke:#6b7280,stroke-width:1.5px,color:#111827
+  classDef internet fill:#fff7ed,stroke:#c2410c,stroke-width:2px,color:#7c2d12
+  classDef legendText fill:#ffffff,stroke:#ffffff,color:#374151
+  classDef legendSmall font-size:11px
+
+  class views,logic,tables,l1 ours
+  class sdk,auth,storage,l2 inherited
+  class net internet
+  class l1,l2,l3 legendSmall
+  class l3 legendText
+
+  style PHONE fill:#f8fafc,stroke:#334155,stroke-width:2px
+  style APP fill:#eff6ff,stroke:#1d4ed8,stroke-width:2px
+  style SUPA fill:#f3f4f6,stroke:#334155,stroke-width:2px
+  style LEGEND fill:#ffffff,stroke:#9ca3af,font-size:11px
+  style DB fill:#eff6ff,stroke:#1d4ed8,stroke-width:1.5px
