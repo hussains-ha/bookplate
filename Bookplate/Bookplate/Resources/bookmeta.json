@@ -1,0 +1,50 @@
+[
+  {
+    "bookId": "book-atomic-habits",
+    "status": "read",
+    "rating": 5,
+    "notes": "Chapter 4 on habit stacking. Try it with the morning reading block.",
+    "notePhotos": [],
+    "tags": ["habits", "self-improvement"],
+    "customCover": null,
+    "addedDate": "2025-01-01T00:00:00Z",
+    "startedDate": "2025-01-08T00:00:00Z",
+    "finishedDate": "2025-02-01T00:00:00Z"
+  },
+  {
+    "bookId": "book-dune",
+    "status": "reading",
+    "rating": null,
+    "notes": null,
+    "notePhotos": [],
+    "tags": ["sci-fi"],
+    "customCover": null,
+    "addedDate": "2025-02-02T00:00:00Z",
+    "startedDate": "2025-02-03T00:00:00Z",
+    "finishedDate": null
+  },
+  {
+    "bookId": "book-educated",
+    "status": "want",
+    "rating": null,
+    "notes": null,
+    "notePhotos": [],
+    "tags": [],
+    "customCover": null,
+    "addedDate": "2025-02-04T00:00:00Z",
+    "startedDate": null,
+    "finishedDate": null
+  },
+  {
+    "bookId": "book-sapiens",
+    "status": "read",
+    "rating": 4,
+    "notes": "Great first half.",
+    "notePhotos": [],
+    "tags": ["history", "favorites"],
+    "customCover": null,
+    "addedDate": "2024-11-10T00:00:00Z",
+    "startedDate": "2024-11-12T00:00:00Z",
+    "finishedDate": "2024-12-20T00:00:00Z"
+  }
+]
