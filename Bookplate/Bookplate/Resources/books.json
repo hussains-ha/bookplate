@@ -1,0 +1,42 @@
+[
+  {
+    "id": "book-atomic-habits",
+    "title": "Atomic Habits",
+    "authors": ["James Clear"],
+    "pageCount": 320,
+    "coverUrl": "https://covers.openlibrary.org/b/isbn/9780735211292-L.jpg",
+    "isbn13": "9780735211292"
+  },
+  {
+    "id": "book-dune",
+    "title": "Dune",
+    "authors": ["Frank Herbert"],
+    "pageCount": 688,
+    "coverUrl": "https://covers.openlibrary.org/b/isbn/9780441013593-L.jpg",
+    "isbn13": "9780441013593"
+  },
+  {
+    "id": "book-educated",
+    "title": "Educated",
+    "authors": ["Tara Westover"],
+    "pageCount": 352,
+    "coverUrl": "https://covers.openlibrary.org/b/isbn/9780399590504-L.jpg",
+    "isbn13": "9780399590504"
+  },
+  {
+    "id": "book-sapiens",
+    "title": "Sapiens",
+    "authors": ["Yuval Noah Harari"],
+    "pageCount": 464,
+    "coverUrl": null,
+    "isbn13": "9780062316110"
+  },
+  {
+    "id": "book-good-omens",
+    "title": "Good Omens",
+    "authors": ["Terry Pratchett", "Neil Gaiman"],
+    "pageCount": null,
+    "coverUrl": null,
+    "isbn13": null
+  }
+]
