@@ -53,3 +53,17 @@ extension View {
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.brown.opacity(0.15)))
     }
 }
+
+extension View {
+    /// Email keyboard and no autocapitalization; these modifiers are iOS-only.
+    @ViewBuilder
+    func emailFieldStyle() -> some View {
+        #if os(iOS)
+        self
+            .keyboardType(.emailAddress)
+            .textInputAutocapitalization(.never)
+        #else
+        self
+        #endif
+    }
+}

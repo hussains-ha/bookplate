@@ -14,7 +14,7 @@ struct RootView: View {
         case .signup:
             SignupView(onSwitchToLogin: { screen = .login }, onBypass: { screen = .library })
         case .library:
-            ContentView()
+            LibraryView()
         }
     }
 }

@@ -29,8 +29,7 @@ struct LoginView: View {
 
                 AuthTextField(placeholder: "Email", text: $email)
                     .textContentType(.emailAddress)
-                    .keyboardType(.emailAddress)
-                    .textInputAutocapitalization(.never)
+                    .emailFieldStyle()
 
                 HStack {
                     Group {

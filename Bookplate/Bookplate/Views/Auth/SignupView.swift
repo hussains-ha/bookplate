@@ -21,8 +21,7 @@ struct SignupView: View {
 
                 AuthTextField(placeholder: "Email", text: $email)
                     .textContentType(.emailAddress)
-                    .keyboardType(.emailAddress)
-                    .textInputAutocapitalization(.never)
+                    .emailFieldStyle()
 
                 SecureField("Password", text: $password)
                     .textContentType(.newPassword)
