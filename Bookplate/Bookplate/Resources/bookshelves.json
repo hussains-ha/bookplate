@@ -1,0 +1,29 @@
+[
+  {
+    "id": "bookshelf-abigail",
+    "name": "Abigail's Library",
+    "appearance": "classic",
+    "shelves": [
+      { "id": "shelf-recently-added", "name": "Recently Added", "bookIds": ["book-atomic-habits", "book-dune", "book-educated"] },
+      { "id": "shelf-fiction", "name": "Fiction & Classics", "bookIds": ["book-dune", "book-good-omens"] },
+      { "id": "shelf-memoir", "name": "Memoir & Biography", "bookIds": ["book-educated"] },
+      { "id": "shelf-business", "name": "Business & Self-Help", "bookIds": ["book-atomic-habits"] },
+      { "id": "shelf-history", "name": "History & Politics", "bookIds": ["book-sapiens"] }
+    ]
+  },
+  {
+    "id": "bookshelf-book-club",
+    "name": "Book Club Picks",
+    "appearance": "maple",
+    "shelves": [
+      { "id": "shelf-picks", "name": "Our picks this year", "bookIds": ["book-dune", "book-educated"] },
+      { "id": "shelf-next-up", "name": "Next up", "bookIds": ["book-sapiens"] }
+    ]
+  },
+  {
+    "id": "bookshelf-dad",
+    "name": "Dad's Mystery Shelf",
+    "appearance": "modern",
+    "shelves": []
+  }
+]
