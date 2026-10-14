@@ -14,11 +14,12 @@ struct RootView: View {
         case .signup:
             SignupView(onSwitchToLogin: { screen = .login }, onBypass: { screen = .library })
         case .library:
-            LibraryView()
+            MainTabView()
         }
     }
 }
 
 #Preview {
     RootView()
+        .environment(LibraryStore.sample())
 }
