@@ -10,7 +10,11 @@ struct RootView: View {
     var body: some View {
         switch screen {
         case .login:
-            LoginView(onSwitchToSignup: { screen = .signup }, onBypass: { screen = .library })
+            LoginView(
+                onSwitchToSignup: { screen = .signup },
+                onSignIn: { screen = .library },
+                onBypass: { screen = .library }
+            )
         case .signup:
             SignupView(onSwitchToLogin: { screen = .login }, onBypass: { screen = .library })
         case .library:

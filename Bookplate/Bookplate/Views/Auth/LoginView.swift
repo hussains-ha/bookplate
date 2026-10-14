@@ -2,11 +2,23 @@ import SwiftUI
 
 struct LoginView: View {
     var onSwitchToSignup: () -> Void
+    var onSignIn: () -> Void
     var onBypass: () -> Void
 
     @State private var email = ""
     @State private var password = ""
     @State private var showPassword = false
+    @State private var showError = false
+
+    /// Placeholder credentials until the auth service exists.
+    private func signIn() {
+        if email == "devuser" && password == "pass" {
+            showError = false
+            onSignIn()
+        } else {
+            showError = true
+        }
+    }
 
     var body: some View {
         VStack(spacing: 14) {
@@ -46,7 +58,13 @@ struct LoginView: View {
                 }
                 .authFieldStyle()
 
-                Button {} label: { AuthPrimaryLabel(title: "Sign in") }
+                if showError {
+                    Text("Incorrect email or password.")
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
+
+                Button(action: signIn) { AuthPrimaryLabel(title: "Sign in") }
 
                 Button("Forgot password?") {}
                     .font(.footnote)
@@ -77,5 +95,5 @@ struct LoginView: View {
 }
 
 #Preview {
-    LoginView(onSwitchToSignup: {}, onBypass: {})
+    LoginView(onSwitchToSignup: {}, onSignIn: {}, onBypass: {})
 }
