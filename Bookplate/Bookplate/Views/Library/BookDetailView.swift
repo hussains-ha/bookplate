@@ -282,6 +282,9 @@ private struct RemoveBookConfirmation: View {
     @Binding var skipNextTime: Bool
     let onRemove: () -> Void
 
+    /// Only saved to `skipNextTime` when the book is actually removed, so cancelling doesn't switch the prompt off.
+    @State private var dontAskAgain = false
+
     var body: some View {
         VStack(spacing: 16) {
             Text("Remove this book?")
@@ -291,9 +294,10 @@ private struct RemoveBookConfirmation: View {
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Theme.mutedText)
-            Toggle("Don't show this again", isOn: $skipNextTime)
+            Toggle("Don't show this again", isOn: $dontAskAgain)
                 .font(.subheadline)
             Button("Remove Book", role: .destructive) {
+                skipNextTime = dontAskAgain
                 dismiss()
                 onRemove()
             }
