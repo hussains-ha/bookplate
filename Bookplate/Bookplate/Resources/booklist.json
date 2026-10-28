@@ -1,0 +1,22 @@
+[
+  {
+    "id": "list-book-club",
+    "name": "Book Club Picks",
+    "bookIds": ["book-dune", "book-educated"]
+  },
+  {
+    "id": "list-self-improvement",
+    "name": "Self-Improvement",
+    "bookIds": ["book-atomic-habits"]
+  },
+  {
+    "id": "list-to-reread",
+    "name": "To Re-read",
+    "bookIds": ["book-good-omens", "book-sapiens"]
+  },
+  {
+    "id": "list-empty",
+    "name": "Someday",
+    "bookIds": []
+  }
+]
