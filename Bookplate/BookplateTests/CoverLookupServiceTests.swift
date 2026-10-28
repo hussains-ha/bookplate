@@ -90,9 +90,26 @@ struct CoverLookupServiceTests {
         #expect(try await CoverLookupService(client: client).lookup(title: "Nope", author: nil, isbn: nil) == nil)
     }
 
-    @Test func malformedJSONReturnsNil() async throws {
-        let client = MockHTTPClient { _ in (200, Data("not json".utf8)) }
-        #expect(try await CoverLookupService(client: client).lookup(title: "Nope", author: nil, isbn: nil) == nil)
+    @Test func malformedJSONThrowsSoItCanBeRetried() async {
+        let client = MockHTTPClient { _ in (200, Data("<html>Wi-Fi login</html>".utf8)) }
+        await #expect(throws: DecodingError.self) {
+            try await CoverLookupService(client: client).lookup(title: "Nope", author: nil, isbn: nil)
+        }
+    }
+
+    @Test func openLibraryServerErrorThrowsInsteadOfFallingBack() async {
+        let client = MockHTTPClient { _ in (503, Data()) }
+        await #expect(throws: URLError.self) {
+            try await CoverLookupService(client: client).lookup(title: "Dune", author: nil, isbn: "9780441013593")
+        }
+        #expect(client.requests.count == 1)
+    }
+
+    @Test func openLibraryRateLimitThrows() async {
+        let client = MockHTTPClient { _ in (429, Data()) }
+        await #expect(throws: URLError.self) {
+            try await CoverLookupService(client: client).lookup(title: "Dune", author: nil, isbn: "9780441013593")
+        }
     }
 
     @Test func serverErrorThrowsSoItCanBeRetried() async {

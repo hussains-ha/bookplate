@@ -69,7 +69,12 @@ struct CoverLookupService: CoverLookup {
         request.httpMethod = "HEAD"
         let (_, response) = try await client.data(for: request)
         // Open Library answers 404 (not a blank image) when `default=false` and there is no cover.
-        return (response as? HTTPURLResponse)?.statusCode == 200
+        // Any other status (429, 5xx, ...) is a temporary failure, so throw and let the caller try again later.
+        switch (response as? HTTPURLResponse)?.statusCode {
+        case 200: return true
+        case 404: return false
+        default: throw URLError(.badServerResponse)
+        }
     }
 
     private func googleBooksResult(title: String, author: String?) async throws -> CoverLookupResult? {
@@ -78,7 +83,8 @@ struct CoverLookupService: CoverLookup {
         guard let status = (response as? HTTPURLResponse)?.statusCode, (200..<300).contains(status) else {
             throw URLError(.badServerResponse)
         }
-        guard let volume = try? JSONDecoder().decode(GoogleBooksResponse.self, from: data).items?.first?.volumeInfo else {
+        // A body that isn't valid JSON (e.g. a Wi-Fi login page) throws, so it is retried instead of counted as "no result".
+        guard let volume = try JSONDecoder().decode(GoogleBooksResponse.self, from: data).items?.first?.volumeInfo else {
             return nil
         }
         let coverURL = volume.imageLinks?.thumbnail.flatMap(Self.cleanGoogleCoverURL)
