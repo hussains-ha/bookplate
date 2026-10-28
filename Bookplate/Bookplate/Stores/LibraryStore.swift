@@ -11,10 +11,14 @@ final class LibraryStore {
 
     static let recentlyAddedName = "Recently Added"
 
-    init(books: [Book], metas: [BookMeta], bookshelf: Bookshelf) {
+    private let coverLookup: CoverLookup
+    private var lookupsInFlight: Set<String> = []
+
+    init(books: [Book], metas: [BookMeta], bookshelf: Bookshelf, coverLookup: CoverLookup? = nil) {
         self.books = books
         self.metas = metas
         self.bookshelf = bookshelf
+        self.coverLookup = coverLookup ?? CoverLookupService()
     }
 
     /// Loads the bundled sample data, falling back to the in-code mocks.
@@ -79,7 +83,34 @@ final class LibraryStore {
         } else {
             bookshelf.shelves[0].bookIds.insert(book.id, at: 0)
         }
+        Task { await fillCover(for: book.id) }
         return book
+    }
+
+    /// Looks up an official cover (and a page count, if missing) for a book and saves what is found.
+    /// Each book is only marked as tried once a lookup finishes, so a network failure is retried later.
+    func fillCover(for bookId: String) async {
+        guard let book = books.first(where: { $0.id == bookId }),
+              book.coverLookupAttempted != true,
+              lookupsInFlight.insert(bookId).inserted else { return }
+        defer { lookupsInFlight.remove(bookId) }
+
+        let result: CoverLookupResult?
+        do {
+            result = try await coverLookup.lookup(title: book.title, author: book.authors.first, isbn: book.isbn13)
+        } catch {
+            return
+        }
+        guard let index = books.firstIndex(where: { $0.id == bookId }) else { return }
+        if books[index].coverUrl == nil { books[index].coverUrl = result?.coverURL }
+        if books[index].pageCount == nil { books[index].pageCount = result?.pageCount }
+        books[index].coverLookupAttempted = true
+    }
+
+    /// Tries to find covers for existing books that have none, once each.
+    func backfillCovers() async {
+        let ids = books.filter { $0.coverUrl == nil && $0.coverLookupAttempted != true }.map(\.id)
+        for id in ids { await fillCover(for: id) }
     }
 
     private static func normalize(_ text: String) -> String {

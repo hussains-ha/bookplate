@@ -7,6 +7,7 @@ import SwiftUI
         WindowGroup {
             RootView()
                 .environment(store)
+                .task { await store.backfillCovers() }
         }
     }
 }
