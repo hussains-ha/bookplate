@@ -49,6 +49,20 @@ final class LibraryStore {
         }
     }
 
+    /// Moves a book to a new position on the same shelf. `index` is its final position, clamped to the shelf.
+    /// Returns false when nothing changed (unknown shelf or book, or the book is already there).
+    @discardableResult
+    func moveBook(_ bookId: String, onShelf shelfId: String, to index: Int) -> Bool {
+        guard let shelfIndex = bookshelf.shelves.firstIndex(where: { $0.id == shelfId }),
+              let from = bookshelf.shelves[shelfIndex].bookIds.firstIndex(of: bookId) else { return false }
+        var ids = bookshelf.shelves[shelfIndex].bookIds
+        let to = min(max(index, 0), ids.count - 1)
+        guard to != from else { return false }
+        ids.insert(ids.remove(at: from), at: to)
+        bookshelf.shelves[shelfIndex].bookIds = ids
+        return true
+    }
+
     /// Adds a book to the front of the target shelf, creating the default shelf if none exist.
     @discardableResult
     func addBook(title: String, author: String, pageCount: Int?, shelfId: String?) -> Book {
