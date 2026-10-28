@@ -13,27 +13,17 @@ struct SpineView: View {
         return min(max(CGFloat(pageCount) / 12, minWidth), maxWidth)
     }
 
-    /// Deterministic (unlike `hashValue`) so a book keeps its look across launches.
-    private var seed: Int {
-        book.id.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) % 1_000_003 }
-    }
-
-    private var color: Color { Theme.spineColors[seed % Theme.spineColors.count] }
-    private var height: CGFloat { 92 + CGFloat(seed % 5) * 6 }
-
-    private var textColor: Color {
-        color == Theme.spineColors[5] ? Theme.brown : .white
-    }
+    private var appearance: BookAppearance { BookAppearance(bookId: book.id) }
 
     var body: some View {
         Text(book.title)
             .font(.system(size: 9, weight: .semibold, design: .serif))
-            .foregroundStyle(textColor.opacity(0.92))
+            .foregroundStyle(appearance.textColor.opacity(0.92))
             .lineLimit(1)
-            .frame(width: height - 12)
+            .frame(width: appearance.spineHeight - 12)
             .rotationEffect(.degrees(-90))
-            .frame(width: Self.width(forPageCount: book.pageCount), height: height)
-            .background(color)
+            .frame(width: Self.width(forPageCount: book.pageCount), height: appearance.spineHeight)
+            .background(appearance.color)
             .clipShape(RoundedRectangle(cornerRadius: 2))
             .accessibilityElement()
             .accessibilityLabel(book.title)
