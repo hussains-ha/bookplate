@@ -5,6 +5,7 @@ struct LibraryView: View {
 
     @State private var query = ""
     @State private var showingAddBook = false
+    @State private var selectedBook: Book?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -19,7 +20,8 @@ struct LibraryView: View {
             ScrollView {
                 VStack(spacing: 14) {
                     ForEach(store.bookshelf.shelves) { shelf in
-                        ShelfView(shelf: shelf, books: store.books(on: shelf, matching: query))
+                        ShelfView(shelf: shelf, books: store.books(on: shelf, matching: query),
+                                  onSelect: { selectedBook = $0 })
                     }
                 }
                 .padding(.vertical, 12)
@@ -31,6 +33,9 @@ struct LibraryView: View {
         .background(Theme.background.ignoresSafeArea())
         .sheet(isPresented: $showingAddBook) {
             AddBookView(defaultShelfId: store.defaultShelfId)
+        }
+        .sheet(item: $selectedBook) { book in
+            BookDetailView(bookId: book.id)
         }
     }
 
