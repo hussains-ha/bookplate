@@ -91,4 +91,19 @@ struct ShelfReorderTests {
         #expect(ShelfReorder.shift(forIndex: 2, pickedIndex: 0, targetIndex: 1, widths: widths, spacing: 2) == 0)
         #expect(ShelfReorder.shift(forIndex: 0, pickedIndex: 1, targetIndex: 1, widths: widths, spacing: 2) == 0)
     }
+
+    @Test func outOfRangeIndicesAreClampedInsteadOfCrashing() {
+        #expect(ShelfReorder.slotOffset(pickedIndex: 0, targetIndex: 99, widths: widths, spacing: 2) == 74)
+        #expect(ShelfReorder.slotOffset(pickedIndex: 2, targetIndex: -5, widths: widths, spacing: 2) == -54)
+        #expect(ShelfReorder.slotOffset(pickedIndex: 7, targetIndex: 0, widths: widths, spacing: 2) == 0)
+        #expect(ShelfReorder.shift(forIndex: 1, pickedIndex: 0, targetIndex: 99, widths: widths, spacing: 2) == -22)
+        #expect(ShelfReorder.shift(forIndex: 1, pickedIndex: 7, targetIndex: 0, widths: widths, spacing: 2) == 0)
+    }
+
+    @Test func singleBookAndEmptyShelvesAreSafe() {
+        #expect(ShelfReorder.targetIndex(draggedCenter: 500, pickedIndex: 0, widths: [30], spacing: 2) == 0)
+        #expect(ShelfReorder.slotOffset(pickedIndex: 0, targetIndex: 0, widths: [30], spacing: 2) == 0)
+        #expect(ShelfReorder.slotOffset(pickedIndex: 0, targetIndex: 0, widths: [], spacing: 2) == 0)
+        #expect(ShelfReorder.shift(forIndex: 0, pickedIndex: 0, targetIndex: 0, widths: [], spacing: 2) == 0)
+    }
 }

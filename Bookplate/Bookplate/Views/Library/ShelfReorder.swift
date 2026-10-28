@@ -19,6 +19,8 @@ enum ShelfReorder {
 
     /// How far the picked spine's slot has moved from its original spot once it targets `targetIndex`.
     static func slotOffset(pickedIndex: Int, targetIndex: Int, widths: [CGFloat], spacing: CGFloat) -> CGFloat {
+        guard widths.indices.contains(pickedIndex), !widths.isEmpty else { return 0 }
+        let targetIndex = min(max(targetIndex, 0), widths.count - 1)
         if targetIndex > pickedIndex {
             return widths[(pickedIndex + 1)...targetIndex].reduce(0) { $0 + $1 + spacing }
         } else if targetIndex < pickedIndex {
@@ -29,6 +31,8 @@ enum ShelfReorder {
 
     /// How far another spine slides to open the gap: toward the picked spine's old spot by one slot.
     static func shift(forIndex index: Int, pickedIndex: Int, targetIndex: Int, widths: [CGFloat], spacing: CGFloat) -> CGFloat {
+        guard widths.indices.contains(pickedIndex) else { return 0 }
+        let targetIndex = min(max(targetIndex, 0), widths.count - 1)
         let slot = widths[pickedIndex] + spacing
         if pickedIndex < targetIndex, index > pickedIndex, index <= targetIndex { return -slot }
         if targetIndex < pickedIndex, index >= targetIndex, index < pickedIndex { return slot }

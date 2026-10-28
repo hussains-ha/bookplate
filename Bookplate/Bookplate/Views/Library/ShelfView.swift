@@ -60,6 +60,7 @@ struct ShelfView: View {
                               visibleWidth: geometry.visibleRect.width)
             } action: { _, new in
                 metrics = new
+                if pickedId != nil { updateTarget() }
             }
 
             HStack {
@@ -94,6 +95,10 @@ struct ShelfView: View {
         .onChange(of: gestureActive) { _, active in
             // Safety net: if the touch is interrupted, put the book back.
             if !active, pickedId != nil { finish(drop: false) }
+        }
+        .onChange(of: books.map(\.id)) {
+            // The picked book left the shelf (or the shelf changed under the drag): put everything back.
+            if pickedId != nil, pickedIndex == nil { finish(drop: false) }
         }
         .task(id: pickedId) { await autoScrollWhilePicked() }
     }
@@ -172,33 +177,39 @@ struct ShelfView: View {
     }
 
     private func finish(drop: Bool) {
-        if drop, let picked = pickedIndex, targetIndex != picked {
-            onMove(books[picked].id, targetIndex)
+        // Reorder and put the book down in one animation, so neighbors settle instead of jumping.
+        withAnimation(.snappy(duration: 0.2)) {
+            if drop, let picked = pickedIndex, targetIndex != picked {
+                onMove(books[picked].id, targetIndex)
+            }
+            pickedId = nil
         }
-        withAnimation(.snappy(duration: 0.2)) { pickedId = nil }
         startFingerX = nil
     }
 
     // MARK: Auto-scroll
 
     /// Scrolls the shelf sideways while a picked-up book is held near its left or right edge.
+    /// Waits for the first finger position, so a book held still right after pick-up doesn't start scrolling.
     private func autoScrollWhilePicked() async {
         guard pickedId != nil else { return }
+        // Track the offset here instead of re-reading it each tick, so a lagging scroll report can't slow the scroll.
+        var offset = metrics.offsetX
         while !Task.isCancelled {
-            let depth: CGFloat
-            if fingerX < Self.edgeZone {
-                depth = -(Self.edgeZone - fingerX) / Self.edgeZone
-            } else if fingerX > shelfSize.width - Self.edgeZone {
-                depth = (fingerX - (shelfSize.width - Self.edgeZone)) / Self.edgeZone
-            } else {
-                depth = 0
-            }
-            if depth != 0 {
-                let maxX = max(0, metrics.contentWidth - metrics.visibleWidth)
-                let newX = min(max(metrics.offsetX + min(max(depth, -1), 1) * Self.maxScrollPerTick, 0), maxX)
-                scrollPosition.scrollTo(x: newX)
-                metrics.offsetX = newX
-                updateTarget()
+            if startFingerX != nil {
+                let depth: CGFloat
+                if fingerX < Self.edgeZone {
+                    depth = -(Self.edgeZone - fingerX) / Self.edgeZone
+                } else if fingerX > shelfSize.width - Self.edgeZone {
+                    depth = (fingerX - (shelfSize.width - Self.edgeZone)) / Self.edgeZone
+                } else {
+                    depth = 0
+                }
+                if depth != 0 {
+                    let maxX = max(0, metrics.contentWidth - metrics.visibleWidth)
+                    offset = min(max(offset + min(max(depth, -1), 1) * Self.maxScrollPerTick, 0), maxX)
+                    scrollPosition.scrollTo(x: offset)
+                }
             }
             try? await Task.sleep(for: .milliseconds(16))
         }
