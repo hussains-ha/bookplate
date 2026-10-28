@@ -25,7 +25,16 @@ final class LibraryStore {
         return LibraryStore(books: books, metas: metas, bookshelf: bookshelf)
     }
 
-    var defaultShelfId: String? { bookshelf.shelves.first?.id }
+    /// The shelf new books go to by default: the first one that isn't locked.
+    var defaultShelfId: String? { bookshelf.shelves.first { !$0.isLocked }?.id }
+
+    /// True when there are shelves but none can take new books.
+    var allShelvesLocked: Bool { !bookshelf.shelves.isEmpty && bookshelf.shelves.allSatisfy(\.isLocked) }
+
+    func setLocked(_ locked: Bool, onShelf shelfId: String) {
+        guard let index = bookshelf.shelves.firstIndex(where: { $0.id == shelfId }) else { return }
+        bookshelf.shelves[index].isLocked = locked
+    }
 
     /// Books on a shelf in shelf order, optionally filtered by a title/author query.
     func books(on shelf: Shelf, matching query: String = "") -> [Book] {
@@ -50,10 +59,11 @@ final class LibraryStore {
     }
 
     /// Moves a book to a new position on the same shelf. `index` is its final position, clamped to the shelf.
-    /// Returns false when nothing changed (unknown shelf or book, or the book is already there).
+    /// Returns false when nothing changed (unknown or locked shelf, unknown book, or the book is already there).
     @discardableResult
     func moveBook(_ bookId: String, onShelf shelfId: String, to index: Int) -> Bool {
         guard let shelfIndex = bookshelf.shelves.firstIndex(where: { $0.id == shelfId }),
+              !bookshelf.shelves[shelfIndex].isLocked,
               let from = bookshelf.shelves[shelfIndex].bookIds.firstIndex(of: bookId) else { return false }
         var ids = bookshelf.shelves[shelfIndex].bookIds
         let to = min(max(index, 0), ids.count - 1)
@@ -64,8 +74,10 @@ final class LibraryStore {
     }
 
     /// Adds a book to the front of the target shelf, creating the default shelf if none exist.
+    /// A locked or missing target falls back to the first unlocked shelf. Returns nil, adding nothing, when every shelf is locked.
     @discardableResult
-    func addBook(title: String, author: String, pageCount: Int?, shelfId: String?) -> Book {
+    func addBook(title: String, author: String, pageCount: Int?, shelfId: String?) -> Book? {
+        guard !allShelvesLocked else { return nil }
         let author = author.trimmingCharacters(in: .whitespacesAndNewlines)
         let book = Book(
             id: "book-\(UUID().uuidString.lowercased())",
@@ -82,16 +94,15 @@ final class LibraryStore {
             addedDate: Date(), startedDate: nil, finishedDate: nil
         ))
 
-        if let index = bookshelf.shelves.firstIndex(where: { $0.id == shelfId }) {
+        let requested = bookshelf.shelves.firstIndex { $0.id == shelfId && !$0.isLocked }
+        if let index = requested ?? bookshelf.shelves.firstIndex(where: { !$0.isLocked }) {
             bookshelf.shelves[index].bookIds.insert(book.id, at: 0)
-        } else if bookshelf.shelves.isEmpty {
+        } else {
             bookshelf.shelves.append(Shelf(
                 id: "shelf-\(UUID().uuidString.lowercased())",
                 name: Self.recentlyAddedName,
                 bookIds: [book.id]
             ))
-        } else {
-            bookshelf.shelves[0].bookIds.insert(book.id, at: 0)
         }
         return book
     }
