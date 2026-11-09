@@ -20,8 +20,13 @@ struct LibraryView: View {
             ScrollView {
                 VStack(spacing: 14) {
                     ForEach(store.bookshelf.shelves) { shelf in
-                        ShelfView(shelf: shelf, books: store.books(on: shelf, matching: query),
-                                  onSelect: { selectedBook = $0 })
+                        ShelfView(
+                            shelf: shelf,
+                            books: store.books(on: shelf, matching: query),
+                            isReorderEnabled: query.isEmpty,
+                            onSelect: { selectedBook = $0 },
+                            onMove: { bookId, index in store.moveBook(bookId, onShelf: shelf.id, to: index) }
+                        )
                     }
                 }
                 .padding(.vertical, 12)
