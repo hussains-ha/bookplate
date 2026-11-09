@@ -17,16 +17,18 @@ extension Book {
         title: "Atomic Habits",
         authors: ["James Clear"],
         pageCount: 320,
-        coverUrl: nil,
+        coverUrl: URL(string: "https://covers.openlibrary.org/b/isbn/9780735211292-L.jpg?default=false"),
         isbn13: "9780735211292"
     )
 
     static let mocks: [Book] = [
         .mock,
         Book(id: "book-dune", title: "Dune", authors: ["Frank Herbert"],
-             pageCount: 688, coverUrl: nil, isbn13: "9780441013593"),
+             pageCount: 688,
+             coverUrl: URL(string: "https://covers.openlibrary.org/b/isbn/9780441013593-L.jpg?default=false"), isbn13: "9780441013593"),
         Book(id: "book-educated", title: "Educated", authors: ["Tara Westover"],
-             pageCount: 352, coverUrl: nil, isbn13: "9780399590504"),
+             pageCount: 352,
+             coverUrl: URL(string: "https://covers.openlibrary.org/b/isbn/9780399590504-L.jpg?default=false"), isbn13: "9780399590504"),
         Book(id: "book-good-omens", title: "Good Omens", authors: ["Terry Pratchett", "Neil Gaiman"],
              pageCount: nil, coverUrl: nil, isbn13: nil),
     ]
