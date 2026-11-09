@@ -11,7 +11,7 @@ Bookplate is a SwiftUI app for tracking the books you read. Your collection is d
 | Add book | Manual entry of title, author, page count and shelf, with a duplicate warning |
 | Lists, Stats, Settings tabs | Empty placeholders |
 | Persistence | None. Everything is in memory and resets on launch |
-| Backend | None yet (see [Backend](#backend)) |
+| Backend | Supabase client set up; not used by any feature yet (see [Backend](#backend)) |
 | Tests | None yet |
 
 ## Getting started
@@ -19,7 +19,7 @@ Bookplate is a SwiftUI app for tracking the books you read. Your collection is d
 Requirements:
 
 - macOS with Xcode 27 or newer. The deployment target is iOS 27.
-- No third-party packages
+- [supabase-swift](https://github.com/supabase/supabase-swift), added through Swift Package Manager. Xcode fetches it on first open.
 
 ```sh
 git clone https://github.com/hussains-ha/bookplate.git
@@ -27,7 +27,7 @@ cd bookplate
 open Bookplate/Bookplate.xcodeproj
 ```
 
-Choose an iPhone simulator and run with ⌘R. To run on a device, set your own team under Signing & Capabilities. The bundle identifier is still a placeholder.
+Before the first run, set up the Supabase key (see [Backend setup](#backend-setup)). Then choose an iPhone simulator and run with ⌘R. To run on a device, set your own team under Signing & Capabilities. The bundle identifier is still a placeholder.
 
 ### Signing in
 
@@ -89,7 +89,16 @@ docs/
 
 ## Backend
 
-There is no backend code in the repo yet. The diagram in `docs/architecture/` shows the planned setup: the app talks to Supabase (Postgres with row-level security, Auth and Storage) through the Supabase Swift SDK. None of that is wired up, and the SDK isn't a dependency yet.
+The app talks to Supabase (Postgres with row-level security, Auth and Storage) through the Supabase Swift SDK. The diagram in `docs/architecture/` shows the planned setup. So far only the client exists: `SupabaseService.client` in `Services/SupabaseService.swift`. No feature uses it yet.
+
+### Backend setup
+
+The project URL is committed in `Bookplate/Config.xcconfig`. The key is not:
+
+1. Copy `Bookplate/Secrets.example.xcconfig` to `Bookplate/Secrets.xcconfig`. The copy is gitignored.
+2. Set `SUPABASE_KEY` to the project's publishable key. It's in the Supabase dashboard under Project Settings → API Keys, or ask a teammate.
+
+The values reach the app through `Bookplate-Info.plist`. Without a key the app still builds, but it stops the first time it uses Supabase, with a message pointing to these steps.
 
 ## Contributing
 
