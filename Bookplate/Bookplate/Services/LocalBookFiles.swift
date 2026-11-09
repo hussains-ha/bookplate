@@ -14,12 +14,17 @@ struct LocalBookFiles {
 
     /// The file for a user, under Application Support.
     static func forUser(_ userId: UUID) throws -> LocalBookFiles {
-        let support = try FileManager.default
+        LocalBookFiles(fileURL: try userFolder(userId).appendingPathComponent("local-files.json"),
+                       imagesFolder: try LocalImageStorage.folder())
+    }
+
+    /// Application Support/Bookplate/<user id>, created if needed.
+    static func userFolder(_ userId: UUID) throws -> URL {
+        let folder = try FileManager.default
             .url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
             .appendingPathComponent("Bookplate/\(userId.uuidString.lowercased())", isDirectory: true)
-        try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
-        return LocalBookFiles(fileURL: support.appendingPathComponent("local-files.json"),
-                              imagesFolder: try LocalImageStorage.folder())
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
     }
 
     /// Fills in each meta's custom cover and note photos from the saved file.

@@ -60,6 +60,10 @@ struct SupabaseIntegrationTests {
         #expect(snapshot.shelves.first { $0.id == shelf.id }?.isLocked == true)
         #expect(snapshot.lists.first { $0.id == list.id }?.bookIds == [book.id])
 
+        // Title search is case-insensitive and treats LIKE wildcards literally.
+        #expect(try await repo.books(titled: "INTEGRATION").map(\.id) == [book.id])
+        #expect(try await repo.books(titled: "Integ%").isEmpty)
+
         // Deleting books cascades to details and memberships.
         try await repo.apply(.deleteBook(id: book.id))
         try await repo.apply(.deleteBook(id: other.id))

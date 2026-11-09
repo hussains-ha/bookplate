@@ -51,7 +51,7 @@ struct LibraryView: View {
                 Text("Bookplate")
                     .font(Theme.title(32))
                     .foregroundStyle(Theme.brown)
-                Text("\(store.bookshelf.name) · \(store.books.count) books")
+                Text("\(store.bookshelf.name) · \(store.books.count) \(store.books.count == 1 ? "book" : "books")")
                     .font(.footnote)
                     .foregroundStyle(Theme.mutedText)
             }

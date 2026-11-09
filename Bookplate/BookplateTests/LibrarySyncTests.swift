@@ -18,6 +18,10 @@ final class FlakyLibraryRepository: LibraryRepository {
 
     func loadLibrary() async throws(BookServiceError) -> LibrarySnapshot { try await inner.loadLibrary() }
 
+    func books(titled title: String) async throws(BookServiceError) -> [Book] {
+        try await inner.books(titled: title)
+    }
+
     func apply(_ change: LibraryChange) async throws(BookServiceError) {
         if failures > 0 {
             failures -= 1

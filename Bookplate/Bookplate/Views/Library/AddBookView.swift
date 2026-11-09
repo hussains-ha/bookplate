@@ -9,6 +9,9 @@ struct AddBookView: View {
     @State private var pages = ""
     @State private var shelfId: String
     @State private var duplicate: Book?
+    @State private var checkedDeviceOnly = false
+    @State private var isChecking = false
+    @State private var check: Task<Void, Never>?
 
     init(defaultShelfId: String?) {
         _shelfId = State(initialValue: defaultShelfId ?? "")
@@ -27,6 +30,8 @@ struct AddBookView: View {
                     TextField("Pages (optional)", text: $pages)
                         .numberKeyboard()
                 }
+                // The checked title and author are what gets added, so they can't change mid-check.
+                .disabled(isChecking)
                 if store.allShelvesLocked {
                     Section {
                         Text("All your shelves are locked. Unlock a shelf to add a book.")
@@ -41,12 +46,20 @@ struct AddBookView: View {
                 }
             }
             .navigationTitle("Add Book")
+            .onDisappear { check?.cancel() }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        check?.cancel()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add", action: attemptAdd).disabled(!canAdd)
+                    if isChecking {
+                        ProgressView()
+                    } else {
+                        Button("Add") { check = Task { await attemptAdd() } }.disabled(!canAdd)
+                    }
                 }
             }
             .alert("Possible duplicate", isPresented: Binding(
@@ -57,14 +70,21 @@ struct AddBookView: View {
                 Button("Add Anyway") { add() }
             } message: {
                 if let duplicate {
-                    Text("\"\(duplicate.title)\" is already in your library. Add it again?")
+                    Text("\"\(duplicate.title)\" is already in your library. Add it again?"
+                         + (checkedDeviceOnly ? "\n\nYou're offline, so only the books on this device were checked." : ""))
                 }
             }
         }
     }
 
-    private func attemptAdd() {
-        if let existing = store.findDuplicate(title: trimmedTitle, author: author) {
+    private func attemptAdd() async {
+        isChecking = true
+        let check = await store.checkDuplicate(title: trimmedTitle, author: author)
+        isChecking = false
+        // Cancelled (or the sheet closed) while checking: add nothing.
+        guard !Task.isCancelled else { return }
+        checkedDeviceOnly = check.checkedDeviceOnly
+        if let existing = check.match {
             duplicate = existing
         } else {
             add()

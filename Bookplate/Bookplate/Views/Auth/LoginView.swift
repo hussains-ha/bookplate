@@ -13,6 +13,7 @@ struct LoginView: View {
     @State private var isWorking = false
 
     private func signIn() async {
+        error = nil
         isWorking = true
         defer { isWorking = false }
         do {

@@ -93,6 +93,8 @@ The app talks to Supabase (Postgres with row-level security, Auth and Storage) t
 - **Schema:** `supabase/migrations/` holds the SQL applied to the project: `books`, `book_meta`, `shelves`, `shelf_books`, `lists`, `list_books`, and the `set_shelf_books` / `set_list_books` functions. Every table is owned per user (`user_id` defaults to the session) with row-level security.
 - **Loading:** after sign-in, `SignedInLibraryView` loads the library through `SupabaseLibraryRepository`. New accounts start empty.
 - **Saving:** every `LibraryStore` change is queued in `LibrarySync` and saved in order. A failed save shows a banner and retries with backoff; a change the database refuses is dropped and reported.
+- **Unsaved changes:** the queue is also written per user to `pending-changes.json` in Application Support. On the next sign-in, anything left over is shown and sent again, with an alert listing books that hadn't reached the server.
+- **Duplicate check:** Add Book asks Supabase for books with the same title (case-insensitive), then compares authors on the device. Offline, it checks the books on the device and says so.
 - **On the device only (until #36):** custom covers and note photos, recorded per user in Application Support.
 - **Integration test:** `SupabaseIntegrationTests` runs only with credentials for a confirmed throwaway account: `TEST_RUNNER_BOOKPLATE_E2E_EMAIL=… TEST_RUNNER_BOOKPLATE_E2E_PASSWORD=… xcodebuild test …`.
 

@@ -3,7 +3,7 @@ import Observation
 
 /// Saves library changes in order, one at a time. A failed save stays at the front of the
 /// queue and is retried with backoff; changes the database refuses are dropped and reported.
-// TODO(supabase): the queue lives in memory, so changes not yet saved are lost if the app quits (#11).
+/// The queue is written to `pendingFile` on every change, so nothing is lost if the app quits.
 @Observable
 final class LibrarySync {
     enum Status: Equatable {
@@ -22,11 +22,14 @@ final class LibrarySync {
         return worker == nil ? .idle : .saving
     }
 
-    private(set) var pending: [LibraryChange] = []
+    private(set) var pending: [LibraryChange] = [] {
+        didSet { if !stopped { pendingFile?.save(pending) } }
+    }
     private var retryMessage: String?
     private var rejection: String?
 
-    private let repository: LibraryRepository
+    let repository: LibraryRepository
+    private let pendingFile: PendingChangesFile?
     private let retryDelays: [Duration]
     private let sleep: (Duration) async throws -> Void
     private var worker: Task<Void, Never>?
@@ -36,11 +39,17 @@ final class LibrarySync {
     private var stopped = false
 
     init(repository: LibraryRepository,
+         pendingFile: PendingChangesFile? = nil,
          retryDelays: [Duration] = [.seconds(2), .seconds(5), .seconds(15), .seconds(30)],
          sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.repository = repository
+        self.pendingFile = pendingFile
         self.retryDelays = retryDelays
         self.sleep = sleep
+    }
+
+    func enqueue(contentsOf changes: [LibraryChange]) {
+        for change in changes { enqueue(change) }
     }
 
     func enqueue(_ change: LibraryChange) {
@@ -66,8 +75,8 @@ final class LibrarySync {
         rejection = nil
     }
 
-    /// Stops saving for good (sign-out or account switch). Unsent changes are discarded here;
-    /// #11 keeps them on disk for the next sign-in.
+    /// Stops saving for good (sign-out or account switch). Unsent changes stay in `pendingFile`
+    /// and are sent on the account's next sign-in.
     func stop() {
         stopped = true
         worker?.cancel()
@@ -125,6 +134,41 @@ private extension LibraryChange {
         case (.setShelfBooks(let a, _), .setShelfBooks(let b, _)): a == b
         case (.setListBooks(let a, _), .setListBooks(let b, _)): a == b
         default: false
+        }
+    }
+}
+/// Changes not yet confirmed by the server, saved per user so they survive quitting the app.
+struct PendingChangesFile {
+    let fileURL: URL
+
+    static func forUser(_ userId: UUID) throws -> PendingChangesFile {
+        PendingChangesFile(fileURL: try LocalBookFiles.userFolder(userId).appendingPathComponent("pending-changes.json"))
+    }
+
+    /// Loads the saved changes. Entries that can't be decoded (e.g. written by an older version of
+    /// the app) are skipped; if the file can't be read at all it's kept as a backup, not overwritten.
+    func load() -> [LibraryChange] {
+        guard let data = try? Data(contentsOf: fileURL) else { return [] }
+        guard let entries = try? JSONDecoder().decode([LossyChange].self, from: data) else {
+            let backup = fileURL.deletingPathExtension().appendingPathExtension("unreadable-\(Int(Date().timeIntervalSince1970)).json")
+            try? FileManager.default.moveItem(at: fileURL, to: backup)
+            return []
+        }
+        return entries.compactMap(\.change)
+    }
+
+    private struct LossyChange: Decodable {
+        let change: LibraryChange?
+        init(from decoder: Decoder) throws {
+            change = try? LibraryChange(from: decoder)
+        }
+    }
+
+    func save(_ changes: [LibraryChange]) {
+        if changes.isEmpty {
+            try? FileManager.default.removeItem(at: fileURL)
+        } else {
+            try? JSONEncoder().encode(changes).write(to: fileURL, options: .atomic)
         }
     }
 }
