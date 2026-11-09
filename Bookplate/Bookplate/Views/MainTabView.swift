@@ -10,7 +10,7 @@ struct MainTabView: View {
                 .tabItem { Label("Lists", systemImage: "list.bullet") }
             PlaceholderTab(title: "Stats")
                 .tabItem { Label("Stats", systemImage: "chart.bar") }
-            PlaceholderTab(title: "Settings")
+            SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }
         .tint(Theme.brown)
@@ -32,4 +32,5 @@ private struct PlaceholderTab: View {
 #Preview {
     MainTabView()
         .environment(LibraryStore.sample())
+        .environment(AuthService(backend: PreviewAuthBackend()))
 }

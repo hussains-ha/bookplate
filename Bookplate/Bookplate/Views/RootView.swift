@@ -1,29 +1,33 @@
 import SwiftUI
 
-/// Switches between the auth screens and the main app.
-/// Placeholder state until the auth service exists.
+/// Shows the auth screens or the main app, following the auth session.
 struct RootView: View {
-    private enum Screen { case login, signup, library }
-
-    @State private var screen: Screen = .login
+    @Environment(AuthService.self) private var auth
+    @State private var showingSignup = false
 
     var body: some View {
-        switch screen {
-        case .login:
-            LoginView(
-                onSwitchToSignup: { screen = .signup },
-                onSignIn: { screen = .library },
-                onBypass: { screen = .library }
-            )
-        case .signup:
-            SignupView(onSwitchToLogin: { screen = .login }, onBypass: { screen = .library })
-        case .library:
-            MainTabView()
+        Group {
+            switch auth.state {
+            case .loading:
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Theme.background.ignoresSafeArea())
+            case .signedOut:
+                if showingSignup {
+                    SignupView(onSwitchToLogin: { showingSignup = false }, onBypass: auth.bypass)
+                } else {
+                    LoginView(onSwitchToSignup: { showingSignup = true }, onBypass: auth.bypass)
+                }
+            case .signedIn, .bypassed:
+                MainTabView()
+            }
         }
+        .onChange(of: auth.state) { showingSignup = false }
     }
 }
 
 #Preview {
     RootView()
+        .environment(AuthService(backend: PreviewAuthBackend()))
         .environment(LibraryStore.sample())
 }

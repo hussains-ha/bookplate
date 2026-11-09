@@ -2,21 +2,24 @@ import SwiftUI
 
 struct LoginView: View {
     var onSwitchToSignup: () -> Void
-    var onSignIn: () -> Void
     var onBypass: () -> Void
+
+    @Environment(AuthService.self) private var auth
 
     @State private var email = ""
     @State private var password = ""
     @State private var showPassword = false
-    @State private var showError = false
+    @State private var error: AuthFailure?
+    @State private var isWorking = false
 
-    /// Placeholder credentials until the auth service exists.
-    private func signIn() {
-        if email == "devuser" && password == "pass" {
-            showError = false
-            onSignIn()
-        } else {
-            showError = true
+    private func signIn() async {
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            try await auth.signIn(email: email, password: password)
+            error = nil
+        } catch {
+            self.error = error
         }
     }
 
@@ -58,13 +61,14 @@ struct LoginView: View {
                 }
                 .authFieldStyle()
 
-                if showError {
-                    Text("Incorrect email or password.")
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                if let error {
+                    AuthErrorText(error: error)
                 }
 
-                Button(action: signIn) { AuthPrimaryLabel(title: "Sign in") }
+                Button { Task { await signIn() } } label: {
+                    AuthPrimaryLabel(title: "Sign in", isWorking: isWorking)
+                }
+                .disabled(isWorking || email.isEmpty || password.isEmpty)
 
                 Button("Forgot password?") {}
                     .font(.footnote)
@@ -95,5 +99,6 @@ struct LoginView: View {
 }
 
 #Preview {
-    LoginView(onSwitchToSignup: {}, onSignIn: {}, onBypass: {})
+    LoginView(onSwitchToSignup: {}, onBypass: {})
+        .environment(AuthService(backend: PreviewAuthBackend()))
 }
