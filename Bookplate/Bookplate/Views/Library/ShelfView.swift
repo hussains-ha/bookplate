@@ -4,12 +4,17 @@ import SwiftUI
 struct ShelfView: View {
     let shelf: Shelf
     let books: [Book]
+    var onSelect: (Book) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .bottom, spacing: 2) {
-                    ForEach(books) { SpineView(book: $0) }
+                    ForEach(books) { book in
+                        SpineView(book: book)
+                            .onTapGesture { onSelect(book) }
+                            .accessibilityAddTraits(.isButton)
+                    }
                 }
                 .padding(.horizontal, 12)
                 .frame(minHeight: 112, alignment: .bottom)
