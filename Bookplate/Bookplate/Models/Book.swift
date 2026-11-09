@@ -5,10 +5,12 @@ struct Book: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let title: String
     let authors: [String]
-    let pageCount: Int?
-    let coverUrl: URL?
+    var pageCount: Int?
+    var coverUrl: URL?
     /// Unique book identifier, when known.
     let isbn13: String?
+    /// Set once an automatic cover lookup has finished, so books with no cover aren't looked up forever.
+    var coverLookupAttempted: Bool?
 }
 
 extension Book {
