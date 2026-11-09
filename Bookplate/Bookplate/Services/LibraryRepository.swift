@@ -12,7 +12,7 @@ struct LibrarySnapshot: Equatable {
 
 /// One saved change. Changes are applied in the order they were made, so a book is
 /// always saved before the details and shelf entries that refer to it.
-enum LibraryChange: Equatable {
+enum LibraryChange: Codable, Equatable {
     case saveBook(Book)
     /// Also removes the book's details and its shelf and list entries.
     case deleteBook(id: String)
@@ -30,6 +30,8 @@ enum LibraryChange: Equatable {
 protocol LibraryRepository {
     func loadLibrary() async throws(BookServiceError) -> LibrarySnapshot
     func apply(_ change: LibraryChange) async throws(BookServiceError)
+    /// Books whose title matches, ignoring case. Used for the duplicate check.
+    func books(titled title: String) async throws(BookServiceError) -> [Book]
 }
 
 // MARK: Rows
@@ -187,6 +189,21 @@ struct SupabaseLibraryRepository: LibraryRepository {
         }
     }
 
+    func books(titled title: String) async throws(BookServiceError) -> [Book] {
+        try await run {
+            let rows: [BookRow] = try await client.from("books").select()
+                .ilike("title", pattern: Self.escapeLike(title)).execute().value
+            return rows.map(\.book)
+        }
+    }
+
+    /// Escapes LIKE wildcards so the title matches literally.
+    static func escapeLike(_ text: String) -> String {
+        text.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "%", with: "\\%")
+            .replacingOccurrences(of: "_", with: "\\_")
+    }
+
     private struct SetBooksParams: Encodable {
         let id: String
         let bookIds: [String]
@@ -217,12 +234,85 @@ struct SupabaseLibraryRepository: LibraryRepository {
     }
 }
 
+// MARK: Applying changes
+
+extension LibrarySnapshot {
+    /// Applies a change the way the database does, including cascading deletes.
+    /// Throws `.rejected` when the change refers to a book, shelf or list that doesn't exist.
+    mutating func apply(_ change: LibraryChange) throws(BookServiceError) {
+        switch change {
+        case .saveBook(let book):
+            Self.upsert(book, into: &books, id: \.id)
+        case .deleteBook(let id):
+            books.removeAll { $0.id == id }
+            metas.removeAll { $0.bookId == id }
+            for i in shelves.indices { shelves[i].bookIds.removeAll { $0 == id } }
+            for i in lists.indices { lists[i].bookIds.removeAll { $0 == id } }
+        case .saveMeta(let meta):
+            try requireBook(meta.bookId)
+            var saved = meta
+            saved.customCover = nil
+            saved.notePhotos = []
+            Self.upsert(saved, into: &metas, id: \.bookId)
+        case .saveShelf(let shelf, let position):
+            let existing = shelves.first { $0.id == shelf.id }?.bookIds ?? []
+            shelves.removeAll { $0.id == shelf.id }
+            var saved = shelf
+            saved.bookIds = existing
+            shelves.insert(saved, at: min(position, shelves.count))
+        case .setShelfBooks(let shelfId, let bookIds):
+            guard let i = shelves.firstIndex(where: { $0.id == shelfId }) else { throw .rejected("No shelf \(shelfId)") }
+            for id in bookIds { try requireBook(id) }
+            shelves[i].bookIds = bookIds
+        case .saveList(let list, let position):
+            let existing = lists.first { $0.id == list.id }?.bookIds ?? []
+            lists.removeAll { $0.id == list.id }
+            var saved = list
+            saved.bookIds = existing
+            lists.insert(saved, at: min(position, lists.count))
+        case .setListBooks(let listId, let bookIds):
+            guard let i = lists.firstIndex(where: { $0.id == listId }) else { throw .rejected("No list \(listId)") }
+            for id in bookIds { try requireBook(id) }
+            lists[i].bookIds = bookIds
+        }
+    }
+
+    /// Replays changes that were never confirmed by the server on top of a freshly loaded library,
+    /// so the app shows them while they're sent again. Returns the books the server didn't have.
+    mutating func replay(_ changes: [LibraryChange]) -> [Book] {
+        let known = Set(books.map(\.id))
+        var missing: [Book] = []
+        for change in changes {
+            if case .saveBook(let book) = change, !known.contains(book.id), !missing.contains(where: { $0.id == book.id }) {
+                missing.append(book)
+            }
+            try? apply(change)
+        }
+        // A book added and then deleted before either was saved isn't missing.
+        return missing.filter { book in books.contains { $0.id == book.id } }
+    }
+
+    private func requireBook(_ id: String) throws(BookServiceError) {
+        guard books.contains(where: { $0.id == id }) else { throw .rejected("No book \(id)") }
+    }
+
+    private static func upsert<T>(_ item: T, into items: inout [T], id: KeyPath<T, String>) {
+        if let i = items.firstIndex(where: { $0[keyPath: id] == item[keyPath: id] }) {
+            items[i] = item
+        } else {
+            items.append(item)
+        }
+    }
+}
+
 // MARK: In memory
 
 /// Behaves like the database (including cascading deletes), for tests and previews.
 final class InMemoryLibraryRepository: LibraryRepository {
     private(set) var snapshot: LibrarySnapshot
     private(set) var applied: [LibraryChange] = []
+    /// When set, `books(titled:)` throws it (to test the offline fallback).
+    var searchError: BookServiceError?
 
     init(_ snapshot: LibrarySnapshot = LibrarySnapshot()) {
         self.snapshot = snapshot
@@ -232,52 +322,11 @@ final class InMemoryLibraryRepository: LibraryRepository {
 
     func apply(_ change: LibraryChange) async throws(BookServiceError) {
         applied.append(change)
-        switch change {
-        case .saveBook(let book):
-            upsert(book, into: &snapshot.books, id: \.id)
-        case .deleteBook(let id):
-            snapshot.books.removeAll { $0.id == id }
-            snapshot.metas.removeAll { $0.bookId == id }
-            for i in snapshot.shelves.indices { snapshot.shelves[i].bookIds.removeAll { $0 == id } }
-            for i in snapshot.lists.indices { snapshot.lists[i].bookIds.removeAll { $0 == id } }
-        case .saveMeta(let meta):
-            try requireBook(meta.bookId)
-            var saved = meta
-            saved.customCover = nil
-            saved.notePhotos = []
-            upsert(saved, into: &snapshot.metas, id: \.bookId)
-        case .saveShelf(let shelf, let position):
-            let existing = snapshot.shelves.first { $0.id == shelf.id }?.bookIds ?? []
-            snapshot.shelves.removeAll { $0.id == shelf.id }
-            var saved = shelf
-            saved.bookIds = existing
-            snapshot.shelves.insert(saved, at: min(position, snapshot.shelves.count))
-        case .setShelfBooks(let shelfId, let bookIds):
-            guard let i = snapshot.shelves.firstIndex(where: { $0.id == shelfId }) else { throw .rejected("No shelf \(shelfId)") }
-            for id in bookIds { try requireBook(id) }
-            snapshot.shelves[i].bookIds = bookIds
-        case .saveList(let list, let position):
-            let existing = snapshot.lists.first { $0.id == list.id }?.bookIds ?? []
-            snapshot.lists.removeAll { $0.id == list.id }
-            var saved = list
-            saved.bookIds = existing
-            snapshot.lists.insert(saved, at: min(position, snapshot.lists.count))
-        case .setListBooks(let listId, let bookIds):
-            guard let i = snapshot.lists.firstIndex(where: { $0.id == listId }) else { throw .rejected("No list \(listId)") }
-            for id in bookIds { try requireBook(id) }
-            snapshot.lists[i].bookIds = bookIds
-        }
+        try snapshot.apply(change)
     }
 
-    private func requireBook(_ id: String) throws(BookServiceError) {
-        guard snapshot.books.contains(where: { $0.id == id }) else { throw .rejected("No book \(id)") }
-    }
-
-    private func upsert<T>(_ item: T, into items: inout [T], id: KeyPath<T, String>) {
-        if let i = items.firstIndex(where: { $0[keyPath: id] == item[keyPath: id] }) {
-            items[i] = item
-        } else {
-            items.append(item)
-        }
+    func books(titled title: String) async throws(BookServiceError) -> [Book] {
+        if let searchError { throw searchError }
+        return snapshot.books.filter { $0.title.caseInsensitiveCompare(title) == .orderedSame }
     }
 }

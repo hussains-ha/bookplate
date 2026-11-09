@@ -3,7 +3,7 @@ import Observation
 
 /// Saves library changes in order, one at a time. A failed save stays at the front of the
 /// queue and is retried with backoff; changes the database refuses are dropped and reported.
-// TODO(supabase): the queue lives in memory, so changes not yet saved are lost if the app quits (#11).
+/// The queue is written to `pendingFile` on every change, so nothing is lost if the app quits.
 @Observable
 final class LibrarySync {
     enum Status: Equatable {
@@ -16,24 +16,34 @@ final class LibrarySync {
     }
 
     private(set) var status: Status = .idle
-    private(set) var pending: [LibraryChange] = []
+    private(set) var pending: [LibraryChange] = [] {
+        didSet { pendingFile?.save(pending) }
+    }
 
-    private let repository: LibraryRepository
+    let repository: LibraryRepository
+    private let pendingFile: PendingChangesFile?
     private let retryDelays: [Duration]
     private let sleep: (Duration) async throws -> Void
     private var worker: Task<Void, Never>?
     private var retryWait: Task<Void, Never>?
 
     init(repository: LibraryRepository,
+         pendingFile: PendingChangesFile? = nil,
          retryDelays: [Duration] = [.seconds(2), .seconds(5), .seconds(15), .seconds(30)],
          sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.repository = repository
+        self.pendingFile = pendingFile
         self.retryDelays = retryDelays
         self.sleep = sleep
     }
 
     func enqueue(_ change: LibraryChange) {
-        pending.append(change)
+        enqueue(contentsOf: [change])
+    }
+
+    func enqueue(contentsOf changes: [LibraryChange]) {
+        guard !changes.isEmpty else { return }
+        pending.append(contentsOf: changes)
         guard worker == nil else { return }
         worker = Task { await drain() }
     }
@@ -77,5 +87,27 @@ final class LibrarySync {
         }
         if status == .saving { status = .idle }
         worker = nil
+    }
+}
+
+/// Changes not yet confirmed by the server, saved per user so they survive quitting the app.
+struct PendingChangesFile {
+    let fileURL: URL
+
+    static func forUser(_ userId: UUID) throws -> PendingChangesFile {
+        PendingChangesFile(fileURL: try LocalBookFiles.userFolder(userId).appendingPathComponent("pending-changes.json"))
+    }
+
+    func load() -> [LibraryChange] {
+        guard let data = try? Data(contentsOf: fileURL) else { return [] }
+        return (try? JSONDecoder().decode([LibraryChange].self, from: data)) ?? []
+    }
+
+    func save(_ changes: [LibraryChange]) {
+        if changes.isEmpty {
+            try? FileManager.default.removeItem(at: fileURL)
+        } else {
+            try? JSONEncoder().encode(changes).write(to: fileURL, options: .atomic)
+        }
     }
 }

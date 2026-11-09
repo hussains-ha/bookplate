@@ -203,13 +203,37 @@ final class LibraryStore {
         }
     }
 
+    struct DuplicateCheck: Equatable {
+        var match: Book?
+        /// True when the server couldn't be asked, so only this device's books were checked.
+        var checkedDeviceOnly = false
+    }
+
+    /// Looks for an existing book with the same title and author in the user's online library,
+    /// falling back to the books on this device when the server can't be reached.
+    func checkDuplicate(title: String, author: String) async -> DuplicateCheck {
+        let local = findDuplicate(title: title, author: author)
+        guard let repository = sync?.repository else { return DuplicateCheck(match: local) }
+        do {
+            let candidates = try await repository.books(titled: title.trimmingCharacters(in: .whitespacesAndNewlines))
+            // Books added on this device that haven't been saved yet only show up locally.
+            return DuplicateCheck(match: Self.firstMatch(in: candidates, title: title, author: author) ?? local)
+        } catch {
+            return DuplicateCheck(match: local, checkedDeviceOnly: true)
+        }
+    }
+
     /// An existing book with the same title and author, if any.
     func findDuplicate(title: String, author: String) -> Book? {
-        let title = Self.normalize(title)
-        let author = Self.normalize(author)
+        Self.firstMatch(in: books, title: title, author: author)
+    }
+
+    private static func firstMatch(in books: [Book], title: String, author: String) -> Book? {
+        let title = normalize(title)
+        let author = normalize(author)
         return books.first { book in
-            Self.normalize(book.title) == title
-                && (author.isEmpty || book.authors.contains { Self.normalize($0) == author })
+            normalize(book.title) == title
+                && (author.isEmpty || book.authors.contains { normalize($0) == author })
         }
     }
 

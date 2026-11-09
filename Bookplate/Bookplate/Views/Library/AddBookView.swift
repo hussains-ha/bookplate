@@ -9,6 +9,8 @@ struct AddBookView: View {
     @State private var pages = ""
     @State private var shelfId: String
     @State private var duplicate: Book?
+    @State private var checkedDeviceOnly = false
+    @State private var isChecking = false
 
     init(defaultShelfId: String?) {
         _shelfId = State(initialValue: defaultShelfId ?? "")
@@ -46,7 +48,11 @@ struct AddBookView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add", action: attemptAdd).disabled(!canAdd)
+                    if isChecking {
+                        ProgressView()
+                    } else {
+                        Button("Add") { Task { await attemptAdd() } }.disabled(!canAdd)
+                    }
                 }
             }
             .alert("Possible duplicate", isPresented: Binding(
@@ -57,14 +63,19 @@ struct AddBookView: View {
                 Button("Add Anyway") { add() }
             } message: {
                 if let duplicate {
-                    Text("\"\(duplicate.title)\" is already in your library. Add it again?")
+                    Text("\"\(duplicate.title)\" is already in your library. Add it again?"
+                         + (checkedDeviceOnly ? "\n\nYou're offline, so only the books on this device were checked." : ""))
                 }
             }
         }
     }
 
-    private func attemptAdd() {
-        if let existing = store.findDuplicate(title: trimmedTitle, author: author) {
+    private func attemptAdd() async {
+        isChecking = true
+        let check = await store.checkDuplicate(title: trimmedTitle, author: author)
+        isChecking = false
+        checkedDeviceOnly = check.checkedDeviceOnly
+        if let existing = check.match {
             duplicate = existing
         } else {
             add()
