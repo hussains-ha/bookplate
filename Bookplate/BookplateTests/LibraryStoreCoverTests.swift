@@ -77,7 +77,10 @@ struct LibraryStoreCoverTests {
     @Test func addBookAppearsImmediatelyAndGetsCoverLater() async {
         let lookup = MockCoverLookup(.success(CoverLookupResult(coverURL: cover, pageCount: 300)))
         let store = store(lookup)
-        let book = store.addBook(title: "Dune", author: "Frank Herbert", pageCount: nil, shelfId: nil)
+        guard let book = store.addBook(title: "Dune", author: "Frank Herbert", pageCount: nil, shelfId: nil) else {
+            Issue.record("addBook returned nil")
+            return
+        }
         #expect(store.books.first { $0.id == book.id }?.coverUrl == nil)
         for _ in 0..<100 where store.books.first(where: { $0.id == book.id })?.coverUrl == nil {
             await Task.yield()

@@ -5,6 +5,23 @@ struct Shelf: Codable, Identifiable, Hashable, Sendable {
     let id: String
     var name: String
     var bookIds: [String]
+    /// Locked shelves can't have books added, moved onto, or rearranged.
+    var isLocked = false
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, bookIds, isLocked
+    }
+}
+
+extension Shelf {
+    /// `isLocked` is optional in JSON so files saved before locking existed still load.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        bookIds = try container.decode([String].self, forKey: .bookIds)
+        isLocked = try container.decodeIfPresent(Bool.self, forKey: .isLocked) ?? false
+    }
 }
 
 extension Shelf {

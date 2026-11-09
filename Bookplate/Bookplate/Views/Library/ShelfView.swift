@@ -7,6 +7,7 @@ struct ShelfView: View {
     let books: [Book]
     /// Turn off while the books on screen aren't the shelf's real order (e.g. while searching).
     var isReorderEnabled = true
+    var onToggleLock: () -> Void = {}
     var onSelect: (Book) -> Void = { _ in }
     var onMove: (_ bookId: String, _ toIndex: Int) -> Void = { _, _ in }
 
@@ -32,6 +33,7 @@ struct ShelfView: View {
         var visibleWidth: CGFloat = 0
     }
 
+    private var canReorder: Bool { isReorderEnabled && !shelf.isLocked }
     private var widths: [CGFloat] { books.map { SpineView.width(forPageCount: $0.pageCount) } }
     private var pickedIndex: Int? { books.firstIndex { $0.id == pickedId } }
 
@@ -63,12 +65,22 @@ struct ShelfView: View {
             }
 
             HStack {
-                Text(shelf.name)
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(Theme.brown)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
-                    .background(Theme.label, in: RoundedRectangle(cornerRadius: 1))
+                HStack(spacing: 3) {
+                    if shelf.isLocked {
+                        Image(systemName: "lock.fill").accessibilityLabel("Locked")
+                    }
+                    Text(shelf.name)
+                }
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(Theme.brown)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(Theme.label, in: RoundedRectangle(cornerRadius: 1))
+                .contextMenu {
+                    Button(shelf.isLocked ? "Unlock Shelf" : "Lock Shelf",
+                           systemImage: shelf.isLocked ? "lock.open" : "lock",
+                           action: onToggleLock)
+                }
                 Spacer()
                 Text("\(books.count)")
                     .font(.system(size: 9))
@@ -119,7 +131,7 @@ struct ShelfView: View {
         .zIndex(isPicked ? 1 : 0)
         .onTapGesture { onSelect(book) }
         .accessibilityAddTraits(.isButton)
-        .gesture(pickUpGesture(for: book, at: index), including: isReorderEnabled ? .all : .subviews)
+        .gesture(pickUpGesture(for: book, at: index), including: canReorder ? .all : .subviews)
     }
 
     private func shiftForGap(at index: Int) -> CGFloat {

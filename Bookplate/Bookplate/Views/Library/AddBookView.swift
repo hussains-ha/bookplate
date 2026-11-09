@@ -16,7 +16,7 @@ struct AddBookView: View {
 
     private var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var pageCount: Int? { Int(pages.trimmingCharacters(in: .whitespaces)).flatMap { $0 > 0 ? $0 : nil } }
-    private var canAdd: Bool { !trimmedTitle.isEmpty }
+    private var canAdd: Bool { !trimmedTitle.isEmpty && !store.allShelvesLocked }
 
     var body: some View {
         NavigationStack {
@@ -27,10 +27,15 @@ struct AddBookView: View {
                     TextField("Pages (optional)", text: $pages)
                         .numberKeyboard()
                 }
-                if !store.bookshelf.shelves.isEmpty {
+                if store.allShelvesLocked {
+                    Section {
+                        Text("All your shelves are locked. Unlock a shelf to add a book.")
+                            .foregroundStyle(.secondary)
+                    }
+                } else if !store.bookshelf.shelves.isEmpty {
                     Section {
                         Picker("Shelf", selection: $shelfId) {
-                            ForEach(store.bookshelf.shelves) { Text($0.name).tag($0.id) }
+                            ForEach(store.bookshelf.shelves.filter { !$0.isLocked }) { Text($0.name).tag($0.id) }
                         }
                     }
                 }

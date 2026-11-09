@@ -24,6 +24,7 @@ struct LibraryView: View {
                             shelf: shelf,
                             books: store.books(on: shelf, matching: query),
                             isReorderEnabled: query.isEmpty,
+                            onToggleLock: { store.setLocked(!shelf.isLocked, onShelf: shelf.id) },
                             onSelect: { selectedBook = $0 },
                             onMove: { bookId, index in store.moveBook(bookId, onShelf: shelf.id, to: index) }
                         )
