@@ -8,6 +8,7 @@ struct ShelfView: View {
     /// Turn off while the books on screen aren't the shelf's real order (e.g. while searching).
     var isReorderEnabled = true
     var onToggleLock: () -> Void = {}
+    var onSelect: (Book) -> Void = { _ in }
     var onMove: (_ bookId: String, _ toIndex: Int) -> Void = { _, _ in }
 
     private static let spacing: CGFloat = 2
@@ -128,6 +129,8 @@ struct ShelfView: View {
             }
         }
         .zIndex(isPicked ? 1 : 0)
+        .onTapGesture { onSelect(book) }
+        .accessibilityAddTraits(.isButton)
         .gesture(pickUpGesture(for: book, at: index), including: canReorder ? .all : .subviews)
     }
 
