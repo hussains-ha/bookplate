@@ -53,7 +53,8 @@ struct SignupView: View {
                 Button { Task { await signUp() } } label: {
                     AuthPrimaryLabel(title: "Create account", isWorking: isWorking)
                 }
-                .disabled(isWorking)
+                // After the confirmation notice, resending needs a change first (avoids the email rate limit).
+                .disabled(isWorking || error == .confirmationRequired)
             }
             .padding(.top, 24)
 
@@ -76,6 +77,9 @@ struct SignupView: View {
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.background.ignoresSafeArea())
+        .onChange(of: [name, email, password, confirmPassword]) {
+            if error == .confirmationRequired { error = nil }
+        }
     }
 }
 

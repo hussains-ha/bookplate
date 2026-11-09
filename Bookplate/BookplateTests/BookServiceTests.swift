@@ -23,6 +23,20 @@ struct BookRowTests {
         #expect(!keys.contains("pageCount"))
     }
 
+    @Test func encodesNilColumnsSoClearedValuesAreSaved() throws {
+        let book = Book(id: "book-x", title: "X", authors: [], pageCount: nil, coverUrl: nil, isbn13: nil)
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(BookRow(book))) as? [String: Any]
+        for column in ["page_count", "cover_url", "isbn13", "cover_lookup_attempted"] {
+            #expect(json?[column] is NSNull, "\(column) should be sent as null")
+        }
+    }
+
+    @Test(arguments: [0, -3])
+    func nonPositivePageCountsAreSavedAsUnknown(pages: Int) {
+        let book = Book(id: "book-x", title: "X", authors: [], pageCount: pages, coverUrl: nil, isbn13: nil)
+        #expect(BookRow(book).pageCount == nil)
+    }
+
     @Test func decodesARowFromTheDatabase() throws {
         let json = """
         {"user_id": "5f0c3f1e-0000-4000-8000-000000000000", "id": "book-dune", "title": "Dune",
