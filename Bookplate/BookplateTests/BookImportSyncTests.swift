@@ -63,13 +63,13 @@ struct BookImportSyncTests {
         // Relaunch, now online.
         var snapshot = try await server.loadLibrary()
         let leftover = pendingFile.load()
-        let unsaved = snapshot.replay(leftover)
+        let (unsaved, toSend) = snapshot.replay(leftover)
         #expect(unsaved.map(\.id) == [added.id])
         let sync = LibrarySync(repository: server, pendingFile: pendingFile, retryDelays: [.zero], sleep: { _ in })
         let relaunched = LibraryStore.loaded(snapshot, userId: UUID(), sync: sync, localFiles: nil, coverLookup: NoCoverLookup())
         #expect(relaunched.book(withId: added.id) != nil)
         #expect(relaunched.bookshelf.shelves.first?.bookIds == [added.id])
-        sync.enqueue(contentsOf: leftover)
+        sync.enqueue(contentsOf: toSend)
         await sync.waitUntilIdle()
         #expect(server.snapshot.books.map(\.id) == [added.id])
         #expect(server.snapshot.shelves.first?.bookIds == [added.id])
@@ -78,13 +78,52 @@ struct BookImportSyncTests {
 
     @Test func replayDoesNotReportBooksTheServerAlreadyHas() {
         var snapshot = LibrarySnapshot(books: [book("b1")])
-        #expect(snapshot.replay([.saveBook(book("b1"))]).isEmpty)
+        #expect(snapshot.replay([.saveBook(book("b1"))]).missing.isEmpty)
     }
 
     @Test func replayIgnoresBooksAddedAndDeletedBeforeSaving() {
         var snapshot = LibrarySnapshot()
-        #expect(snapshot.replay([.saveBook(book("b1")), .deleteBook(id: "b1")]).isEmpty)
+        #expect(snapshot.replay([.saveBook(book("b1")), saveMeta("b1"), .deleteBook(id: "b1")]).missing.isEmpty)
         #expect(snapshot.books.isEmpty)
+    }
+
+    private func saveMeta(_ bookId: String) -> LibraryChange {
+        .saveMeta(BookMeta(bookId: bookId, status: "want", rating: nil, notes: nil, notePhotos: [], tags: [],
+                           customCover: nil, addedDate: Date(timeIntervalSince1970: 0), startedDate: nil, finishedDate: nil))
+    }
+
+    /// Book deleted on another device while this one still had a cover update queued for it.
+    @Test func replayDoesNotResurrectBooksDeletedElsewhere() {
+        var snapshot = LibrarySnapshot(shelves: [Shelf(id: "s", name: "S", bookIds: [])])
+        let (missing, toSend) = snapshot.replay([.saveBook(book("gone")), saveMeta("gone"), .deleteBook(id: "x"),
+                                                 .setShelfBooks(shelfId: "s", bookIds: ["gone"])].filter {
+            if case .saveMeta = $0 { false } else { true }
+        })
+        #expect(missing.isEmpty)
+        #expect(snapshot.books.isEmpty)
+        #expect(!toSend.contains(.saveBook(book("gone"))))
+    }
+
+    @Test func replayResendsBooksAddedOnThisDevice() {
+        var snapshot = LibrarySnapshot()
+        let (missing, toSend) = snapshot.replay([.saveBook(book("new")), saveMeta("new")])
+        #expect(missing.map(\.id) == ["new"])
+        #expect(toSend.count == 2)
+    }
+
+    @Test func unreadablePendingEntriesAreSkipped() throws {
+        let good = try JSONEncoder().encode([LibraryChange.deleteBook(id: "b1")])
+        var array = try JSONSerialization.jsonObject(with: good) as! [Any]
+        array.insert(["someFutureCase": ["x": 1]], at: 0)
+        try JSONSerialization.data(withJSONObject: array).write(to: pendingFile.fileURL)
+        #expect(pendingFile.load() == [.deleteBook(id: "b1")])
+    }
+
+    @Test func unreadablePendingFileIsBackedUpNotOverwritten() throws {
+        try Data("not json".utf8).write(to: pendingFile.fileURL)
+        #expect(pendingFile.load().isEmpty)
+        let backups = try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { $0.contains("unreadable") }
+        #expect(backups.count == 1)
     }
 
     @Test func unsavedAlertText() {

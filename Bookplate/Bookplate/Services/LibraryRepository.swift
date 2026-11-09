@@ -295,18 +295,33 @@ extension LibrarySnapshot {
     }
 
     /// Replays changes that were never confirmed by the server on top of a freshly loaded library,
-    /// so the app shows them while they're sent again. Returns the books the server didn't have.
-    mutating func replay(_ changes: [LibraryChange]) -> [Book] {
+    /// so the app shows them while they're sent again.
+    ///
+    /// A book the server doesn't have is only brought back if it was *added* on this device (its
+    /// queued changes include its first details). Otherwise it was deleted elsewhere, and changes
+    /// to it (a cover lookup, an edit) are dropped rather than resurrecting it.
+    mutating func replay(_ changes: [LibraryChange]) -> (missing: [Book], toSend: [LibraryChange]) {
         let known = Set(books.map(\.id))
+        let addedHere = Set(changes.compactMap { change -> String? in
+            if case .saveMeta(let meta) = change { meta.bookId } else { nil }
+        }).subtracting(known)
         var missing: [Book] = []
+        var toSend: [LibraryChange] = []
         for change in changes {
-            if case .saveBook(let book) = change, !known.contains(book.id), !missing.contains(where: { $0.id == book.id }) {
-                missing.append(book)
+            switch change {
+            case .saveBook(let book) where !known.contains(book.id):
+                guard addedHere.contains(book.id) else { continue }
+                if !missing.contains(where: { $0.id == book.id }) { missing.append(book) }
+            case .saveMeta(let meta) where !known.contains(meta.bookId) && !addedHere.contains(meta.bookId):
+                continue
+            default:
+                break
             }
+            toSend.append(change)
             try? apply(change)
         }
         // A book added and then deleted before either was saved isn't missing.
-        return missing.filter { book in books.contains { $0.id == book.id } }
+        return (missing.filter { book in books.contains { $0.id == book.id } }, toSend)
     }
 
     private func hasBook(_ id: String) -> Bool {

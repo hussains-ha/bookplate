@@ -145,9 +145,23 @@ struct PendingChangesFile {
         PendingChangesFile(fileURL: try LocalBookFiles.userFolder(userId).appendingPathComponent("pending-changes.json"))
     }
 
+    /// Loads the saved changes. Entries that can't be decoded (e.g. written by an older version of
+    /// the app) are skipped; if the file can't be read at all it's kept as a backup, not overwritten.
     func load() -> [LibraryChange] {
         guard let data = try? Data(contentsOf: fileURL) else { return [] }
-        return (try? JSONDecoder().decode([LibraryChange].self, from: data)) ?? []
+        guard let entries = try? JSONDecoder().decode([LossyChange].self, from: data) else {
+            let backup = fileURL.deletingPathExtension().appendingPathExtension("unreadable-\(Int(Date().timeIntervalSince1970)).json")
+            try? FileManager.default.moveItem(at: fileURL, to: backup)
+            return []
+        }
+        return entries.compactMap(\.change)
+    }
+
+    private struct LossyChange: Decodable {
+        let change: LibraryChange?
+        init(from decoder: Decoder) throws {
+            change = try? LibraryChange(from: decoder)
+        }
     }
 
     func save(_ changes: [LibraryChange]) {

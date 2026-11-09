@@ -76,11 +76,11 @@ struct SignedInLibraryView: View {
         let leftover = pendingFile?.load() ?? []
         do {
             var snapshot = try await repository.loadLibrary()
-            let unsaved = snapshot.replay(leftover)
+            let (unsaved, toSend) = snapshot.replay(leftover)
             let sync = LibrarySync(repository: repository, pendingFile: pendingFile)
             let store = LibraryStore.loaded(snapshot, userId: user.id, sync: sync,
                                             localFiles: try? LocalBookFiles.forUser(user.id))
-            sync.enqueue(contentsOf: leftover)
+            sync.enqueue(contentsOf: toSend)
             unsavedTitles = unsaved.map(\.title)
             phase = .ready(store)
         } catch {
