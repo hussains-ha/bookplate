@@ -1,0 +1,9 @@
+// Build settings shared by every configuration of the Bookplate app target.
+// Values reach the app through Bookplate-Info.plist.
+
+// `//` starts a comment in xcconfig files, so the URL's slashes are split with $().
+SUPABASE_URL = https:/$()/nrbkimnymqctyxnpdzlb.supabase.co
+
+// SUPABASE_KEY lives in Secrets.xcconfig, which is gitignored.
+// Copy Secrets.example.xcconfig to Secrets.xcconfig and fill it in.
+#include? "Secrets.xcconfig"
