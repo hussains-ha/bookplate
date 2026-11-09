@@ -7,13 +7,15 @@ enum BookServiceError: Error, Equatable, LocalizedError {
     case network
     case decoding
     case server(String)
+    /// The database refused the data (e.g. a constraint), so retrying won't help.
+    case rejected(String)
 
     var errorDescription: String? {
         switch self {
         case .notSignedIn: "Sign in to sync your library."
         case .network: "Can't reach Bookplate. Check your connection and try again."
         case .decoding: "Bookplate received data it couldn't read."
-        case .server(let message): message
+        case .server(let message), .rejected(let message): message
         }
     }
 }
@@ -104,6 +106,9 @@ struct BookService: BookRepository {
         case is DecodingError: .decoding
         // PGRST301/PGRST303: the session's token was rejected or expired.
         case let error as PostgrestError where ["PGRST301", "PGRST303"].contains(error.code): .notSignedIn
+        // Class 22 (data exception) and 23 (integrity constraint) won't succeed on retry.
+        case let error as PostgrestError where error.code?.hasPrefix("22") == true || error.code?.hasPrefix("23") == true:
+            .rejected(error.message)
         case let error as PostgrestError: .server(error.message)
         default: .server(error.localizedDescription)
         }
