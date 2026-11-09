@@ -50,6 +50,11 @@ struct AuthServiceTests {
         await task.value
     }
 
+    /// Lets the observing task catch up, without depending on exact scheduling.
+    private func settle(_ auth: AuthService, to expected: AuthService.State) async {
+        for _ in 0..<100 where auth.state != expected { await Task.yield() }
+    }
+
     @Test func startsLoading() {
         #expect(service().state == .loading)
     }
@@ -58,10 +63,10 @@ struct AuthServiceTests {
         let auth = service()
         await observing(auth) {
             backend.emit(nil)
-            await Task.yield()
+            await settle(auth, to: .signedOut)
             #expect(auth.state == .signedOut)
             backend.emit(reader)
-            await Task.yield()
+            await settle(auth, to: .signedIn(reader))
             #expect(auth.state == .signedIn(reader))
             #expect(auth.user == reader)
         }
@@ -146,10 +151,10 @@ struct AuthServiceTests {
         let auth = service()
         await observing(auth) {
             backend.emit(reader)
-            await Task.yield()
+            await settle(auth, to: .signedIn(reader))
             #expect(auth.state == .signedIn(reader))
             backend.emit(nil)   // sign out, or the SDK revoking an expired session
-            await Task.yield()
+            await settle(auth, to: .signedOut)
             #expect(auth.state == .signedOut)
             #expect(auth.user == nil)
         }
