@@ -12,11 +12,16 @@ protocol ImageStorage {
 //  - enforce the size limit from the test plan (M-05: ~6 MB shows "Image too large.");
 //  - make uploads safe to interrupt (M-12: no broken cover after force-quit).
 struct LocalImageStorage: ImageStorage {
-    func save(_ data: Data, fileExtension: String = "jpg") throws -> URL {
+    static func folder() throws -> URL {
         let folder = try FileManager.default
             .url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
             .appendingPathComponent("BookplateImages", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }
+
+    func save(_ data: Data, fileExtension: String = "jpg") throws -> URL {
+        let folder = try Self.folder()
         let url = folder.appendingPathComponent("\(UUID().uuidString.lowercased()).\(fileExtension)")
         try data.write(to: url, options: .atomic)
         return url

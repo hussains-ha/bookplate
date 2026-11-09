@@ -18,8 +18,11 @@ struct RootView: View {
                 } else {
                     LoginView(onSwitchToSignup: { showingSignup = true }, onBypass: auth.bypass)
                 }
-            case .signedIn, .bypassed:
-                MainTabView()
+            case .signedIn(let user):
+                SignedInLibraryView(user: user)
+                    .id(user.id)
+            case .bypassed:
+                SampleLibraryView()
             }
         }
         .onChange(of: auth.state) { showingSignup = false }

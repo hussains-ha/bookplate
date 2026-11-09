@@ -1,9 +1,8 @@
 import Foundation
 import Observation
 
-/// In-memory source of truth for the current library.
-// TODO(supabase): load these from and save them to Postgres through supabase-swift (one library per user,
-// shared libraries behind row level security). Every mutating method below is a place that needs to write through.
+/// Source of truth for the current library. Signed-in libraries save every change through `LibrarySync`;
+/// the sample library (dev skip, previews, tests) has no sync and stays in memory.
 @MainActor
 @Observable
 final class LibraryStore {
@@ -16,22 +15,61 @@ final class LibraryStore {
 
     private let coverLookup: CoverLookup
     private var lookupsInFlight: Set<String> = []
+    private let sync: LibrarySync?
+    private let localFiles: LocalBookFiles?
 
-    init(books: [Book], metas: [BookMeta], bookshelf: Bookshelf, coverLookup: CoverLookup? = nil) {
+    init(books: [Book], metas: [BookMeta], bookshelf: Bookshelf, lists: [BookList] = [],
+         coverLookup: CoverLookup? = nil, sync: LibrarySync? = nil, localFiles: LocalBookFiles? = nil) {
         self.books = books
         self.metas = metas
         self.bookshelf = bookshelf
+        self.lists = lists
         self.coverLookup = coverLookup ?? CoverLookupService()
+        self.sync = sync
+        self.localFiles = localFiles
     }
+
+    /// A signed-in user's library, loaded from Supabase. Covers and note photos come from the device.
+    static func loaded(_ snapshot: LibrarySnapshot, userId: UUID, sync: LibrarySync,
+                       localFiles: LocalBookFiles?, coverLookup: CoverLookup? = nil) -> LibraryStore {
+        let bookshelf = Bookshelf(id: "bookshelf-\(userId.uuidString.lowercased())", name: "My Library",
+                                  shelves: snapshot.shelves, appearance: .classic)
+        return LibraryStore(books: snapshot.books, metas: localFiles?.apply(to: snapshot.metas) ?? snapshot.metas,
+                            bookshelf: bookshelf, lists: snapshot.lists, coverLookup: coverLookup,
+                            sync: sync, localFiles: localFiles)
+    }
+
+    var syncStatus: LibrarySync.Status { sync?.status ?? .idle }
+    func retrySync() { sync?.retryNow() }
+    func dismissSyncRejection() { sync?.dismissRejection() }
+    func stopSync() { sync?.stop() }
+
+    // MARK: Saving
+
+    private func save(_ change: LibraryChange) { sync?.enqueue(change) }
+
+    private func saveShelf(at index: Int) {
+        save(.saveShelf(bookshelf.shelves[index], position: index))
+    }
+
+    private func saveShelfBooks(at index: Int) {
+        let shelf = bookshelf.shelves[index]
+        save(.setShelfBooks(shelfId: shelf.id, bookIds: shelf.bookIds))
+    }
+
+    private func saveListBooks(at index: Int) {
+        save(.setListBooks(listId: lists[index].id, bookIds: lists[index].bookIds))
+    }
+
+    private func saveLocalFiles() { localFiles?.save(metas) }
 
     /// Loads the bundled sample data, falling back to the in-code mocks.
     static func sample() -> LibraryStore {
         let books = (try? Book.sampleFromBundle()) ?? Book.mocks
         let metas = (try? BookMeta.sampleFromBundle()) ?? BookMeta.mocks
         let bookshelf = ((try? Bookshelf.sampleFromBundle()) ?? Bookshelf.mocks).first ?? .mock
-        let store = LibraryStore(books: books, metas: metas, bookshelf: bookshelf)
-        store.lists = (try? BookList.sampleFromBundle()) ?? BookList.mocks
-        return store
+        let lists = (try? BookList.sampleFromBundle()) ?? BookList.mocks
+        return LibraryStore(books: books, metas: metas, bookshelf: bookshelf, lists: lists)
     }
 
     /// The shelf new books go to by default: the first one that isn't locked.
@@ -42,7 +80,9 @@ final class LibraryStore {
 
     func setLocked(_ locked: Bool, onShelf shelfId: String) {
         guard let index = bookshelf.shelves.firstIndex(where: { $0.id == shelfId }) else { return }
+        guard bookshelf.shelves[index].isLocked != locked else { return }
         bookshelf.shelves[index].isLocked = locked
+        saveShelf(at: index)
     }
 
     func book(withId id: String) -> Book? { books.first { $0.id == id } }
@@ -61,6 +101,8 @@ final class LibraryStore {
 
     func addList(_ list: BookList) {
         lists.append(list)
+        save(.saveList(list, position: lists.count - 1))
+        if !list.bookIds.isEmpty { saveListBooks(at: lists.count - 1) }
     }
 
     /// Adds a book to a list, or removes it.
@@ -71,14 +113,26 @@ final class LibraryStore {
             lists[index].bookIds.append(bookId)
         } else if !isInList, present {
             lists[index].bookIds.removeAll { $0 == bookId }
+        } else {
+            return
         }
+        saveListBooks(at: index)
     }
 
     // MARK: Personal details
 
-    private func updateMeta(_ bookId: String, _ change: (inout BookMeta) -> Void) {
+    /// Applies a change to a book's details and saves them if anything changed.
+    /// `local` changes (custom cover, note photos) are saved on the device instead.
+    private func updateMeta(_ bookId: String, local: Bool = false, _ change: (inout BookMeta) -> Void) {
         guard let index = metas.firstIndex(where: { $0.bookId == bookId }) else { return }
+        let before = metas[index]
         change(&metas[index])
+        guard metas[index] != before else { return }
+        if local {
+            saveLocalFiles()
+        } else {
+            save(.saveMeta(metas[index]))
+        }
     }
 
     func setStatus(_ status: String, for bookId: String) {
@@ -109,21 +163,22 @@ final class LibraryStore {
     }
 
     func addNotePhoto(_ url: URL, to bookId: String) {
-        updateMeta(bookId) { $0.notePhotos.append(url) }
+        updateMeta(bookId, local: true) { $0.notePhotos.append(url) }
     }
 
     func removeNotePhoto(_ url: URL, from bookId: String) {
-        updateMeta(bookId) { $0.notePhotos.removeAll { $0 == url } }
+        updateMeta(bookId, local: true) { $0.notePhotos.removeAll { $0 == url } }
     }
 
     /// Sets the user's own cover for a book, or nil to go back to the official or generated cover.
     func setCustomCover(_ url: URL?, for bookId: String) {
-        updateMeta(bookId) { $0.customCover = url }
+        updateMeta(bookId, local: true) { $0.customCover = url }
     }
 
     /// Removes a book everywhere: its details, its place on every shelf and every list.
     // TODO(supabase): also delete the book's uploaded images (custom cover and note photos) from storage.
     func removeBook(_ bookId: String) {
+        guard book(withId: bookId) != nil else { return }
         books.removeAll { $0.id == bookId }
         metas.removeAll { $0.bookId == bookId }
         for index in bookshelf.shelves.indices {
@@ -132,6 +187,9 @@ final class LibraryStore {
         for index in lists.indices {
             lists[index].bookIds.removeAll { $0 == bookId }
         }
+        // The database removes the book's details and shelf and list entries with it.
+        save(.deleteBook(id: bookId))
+        saveLocalFiles()
     }
 
     /// Books on a shelf in shelf order, optionally filtered by a title/author query.
@@ -168,6 +226,7 @@ final class LibraryStore {
         guard to != from else { return false }
         ids.insert(ids.remove(at: from), at: to)
         bookshelf.shelves[shelfIndex].bookIds = ids
+        saveShelfBooks(at: shelfIndex)
         return true
     }
 
@@ -185,22 +244,28 @@ final class LibraryStore {
             coverUrl: nil,
             isbn13: nil
         )
-        books.append(book)
-        metas.append(BookMeta(
+        let meta = BookMeta(
             bookId: book.id, status: BookMeta.Status.want, rating: nil, notes: nil,
             notePhotos: [], tags: [], customCover: nil,
             addedDate: Date(), startedDate: nil, finishedDate: nil
-        ))
+        )
+        books.append(book)
+        metas.append(meta)
+        save(.saveBook(book))
+        save(.saveMeta(meta))
 
         let requested = bookshelf.shelves.firstIndex { $0.id == shelfId && !$0.isLocked }
         if let index = requested ?? bookshelf.shelves.firstIndex(where: { !$0.isLocked }) {
             bookshelf.shelves[index].bookIds.insert(book.id, at: 0)
+            saveShelfBooks(at: index)
         } else {
             bookshelf.shelves.append(Shelf(
                 id: "shelf-\(UUID().uuidString.lowercased())",
                 name: Self.recentlyAddedName,
                 bookIds: [book.id]
             ))
+            saveShelf(at: bookshelf.shelves.count - 1)
+            saveShelfBooks(at: bookshelf.shelves.count - 1)
         }
         Task { await fillCover(for: book.id) }
         return book
@@ -224,6 +289,7 @@ final class LibraryStore {
         if books[index].coverUrl == nil { books[index].coverUrl = result?.coverURL }
         if books[index].pageCount == nil { books[index].pageCount = result?.pageCount }
         books[index].coverLookupAttempted = true
+        save(.saveBook(books[index]))
     }
 
     /// Tries to find covers for existing books that have none, once each.

@@ -10,8 +10,8 @@ Bookplate is a SwiftUI app for tracking the books you read. Your collection is d
 | Library tab | Bookcase drawn from bundled sample JSON, search by title or author |
 | Add book | Manual entry of title, author, page count and shelf, with a duplicate warning |
 | Lists, Stats, Settings tabs | Empty placeholders |
-| Persistence | None. Everything is in memory and resets on launch |
-| Backend | Supabase client set up; not used by any feature yet (see [Backend](#backend)) |
+| Persistence | Signed-in libraries save every change to Supabase. Custom covers and note photos stay on the device. Dev skip uses in-memory sample data |
+| Backend | Supabase: auth, and each user's books, details, shelves and lists (see [Backend](#backend)) |
 | Tests | None yet |
 
 ## Getting started
@@ -88,7 +88,13 @@ docs/
 
 ## Backend
 
-The app talks to Supabase (Postgres with row-level security, Auth and Storage) through the Supabase Swift SDK. The diagram in `docs/architecture/` shows the planned setup. So far only the client exists: `SupabaseService.client` in `Services/SupabaseService.swift`. No feature uses it yet.
+The app talks to Supabase (Postgres with row-level security, Auth and Storage) through the Supabase Swift SDK. The diagram in `docs/architecture/` shows the planned setup. The client is `SupabaseService.client` in `Services/SupabaseService.swift`.
+
+- **Schema:** `supabase/migrations/` holds the SQL applied to the project: `books`, `book_meta`, `shelves`, `shelf_books`, `lists`, `list_books`, and the `set_shelf_books` / `set_list_books` functions. Every table is owned per user (`user_id` defaults to the session) with row-level security.
+- **Loading:** after sign-in, `SignedInLibraryView` loads the library through `SupabaseLibraryRepository`. New accounts start empty.
+- **Saving:** every `LibraryStore` change is queued in `LibrarySync` and saved in order. A failed save shows a banner and retries with backoff; a change the database refuses is dropped and reported.
+- **On the device only (until #36):** custom covers and note photos, recorded per user in Application Support.
+- **Integration test:** `SupabaseIntegrationTests` runs only with credentials for a confirmed throwaway account: `TEST_RUNNER_BOOKPLATE_E2E_EMAIL=… TEST_RUNNER_BOOKPLATE_E2E_PASSWORD=… xcodebuild test …`.
 
 ### Backend setup
 

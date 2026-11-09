@@ -56,7 +56,8 @@ struct BookServiceErrorTests {
         #expect(BookService.failure(from: URLError(.notConnectedToInternet)) == .network)
         #expect(BookService.failure(from: DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: ""))) == .decoding)
         #expect(BookService.failure(from: PostgrestError(code: "PGRST301", message: "JWT expired")) == .notSignedIn)
-        #expect(BookService.failure(from: PostgrestError(code: "23505", message: "duplicate key")) == .server("duplicate key"))
+        #expect(BookService.failure(from: PostgrestError(code: "23505", message: "duplicate key")) == .rejected("duplicate key"))
+        #expect(BookService.failure(from: PostgrestError(code: "PGRST000", message: "down")) == .server("down"))
     }
 }
 
