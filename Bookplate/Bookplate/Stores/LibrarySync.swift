@@ -15,14 +15,25 @@ final class LibrarySync {
         case rejected(String)
     }
 
-    private(set) var status: Status = .idle
+    /// Retrying wins over a rejection notice, which stays until dismissed.
+    var status: Status {
+        if let retryMessage { return .retrying(retryMessage) }
+        if let rejection { return .rejected(rejection) }
+        return worker == nil ? .idle : .saving
+    }
+
     private(set) var pending: [LibraryChange] = []
+    private var retryMessage: String?
+    private var rejection: String?
 
     private let repository: LibraryRepository
     private let retryDelays: [Duration]
     private let sleep: (Duration) async throws -> Void
     private var worker: Task<Void, Never>?
     private var retryWait: Task<Void, Never>?
+    /// The change being sent right now, which must not be replaced while in flight.
+    private var sending = false
+    private var stopped = false
 
     init(repository: LibraryRepository,
          retryDelays: [Duration] = [.seconds(2), .seconds(5), .seconds(15), .seconds(30)],
@@ -33,7 +44,14 @@ final class LibrarySync {
     }
 
     func enqueue(_ change: LibraryChange) {
-        pending.append(change)
+        guard !stopped else { return }
+        // Typing notes or dragging books produces a burst of saves for the same item;
+        // only the latest matters, so replace a queued one that hasn't been sent yet.
+        if let last = pending.last, last.replaces(change) == true, !(sending && pending.count == 1) {
+            pending[pending.count - 1] = change
+        } else {
+            pending.append(change)
+        }
         guard worker == nil else { return }
         worker = Task { await drain() }
     }
@@ -43,9 +61,19 @@ final class LibrarySync {
         retryWait?.cancel()
     }
 
-    /// Clears a "rejected" notice.
+    /// Clears the "refused" notice.
     func dismissRejection() {
-        if case .rejected = status { status = pending.isEmpty ? .idle : .saving }
+        rejection = nil
+    }
+
+    /// Stops saving for good (sign-out or account switch). Unsent changes are discarded here;
+    /// #11 keeps them on disk for the next sign-in.
+    func stop() {
+        stopped = true
+        worker?.cancel()
+        retryWait?.cancel()
+        pending = []
+        retryMessage = nil
     }
 
     /// Waits until every queued change has been saved or dropped. For tests.
@@ -55,18 +83,28 @@ final class LibrarySync {
 
     private func drain() async {
         var failures = 0
-        while let change = pending.first {
-            if case .rejected = status {} else { status = .saving }
+        while !stopped, let change = pending.first {
+            sending = true
+            let result: Result<Void, BookServiceError>
             do {
                 try await repository.apply(change)
+                result = .success(())
+            } catch {
+                result = .failure(error)
+            }
+            sending = false
+            guard !stopped else { break }
+            switch result {
+            case .success:
                 pending.removeFirst()
                 failures = 0
-                if case .retrying = status { status = .saving }
-            } catch .rejected(let message) {
+                retryMessage = nil
+            case .failure(.rejected(let message)):
                 pending.removeFirst()
-                status = .rejected("Couldn't save a change: \(message)")
-            } catch {
-                status = .retrying(error.localizedDescription)
+                retryMessage = nil
+                rejection = "Couldn't save a change: \(message)"
+            case .failure(let error):
+                retryMessage = error.localizedDescription
                 let delay = retryDelays[min(failures, retryDelays.count - 1)]
                 failures += 1
                 let wait = Task { [sleep] in _ = try? await sleep(delay) }
@@ -75,7 +113,18 @@ final class LibrarySync {
                 retryWait = nil
             }
         }
-        if status == .saving { status = .idle }
         worker = nil
+    }
+}
+
+private extension LibraryChange {
+    /// True when `other` saves the same item and makes this change redundant.
+    func replaces(_ other: LibraryChange) -> Bool {
+        switch (self, other) {
+        case (.saveMeta(let a), .saveMeta(let b)): a.bookId == b.bookId
+        case (.setShelfBooks(let a, _), .setShelfBooks(let b, _)): a == b
+        case (.setListBooks(let a, _), .setListBooks(let b, _)): a == b
+        default: false
+        }
     }
 }

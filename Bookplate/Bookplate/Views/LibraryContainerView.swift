@@ -3,7 +3,7 @@ import SwiftUI
 /// Loads the signed-in user's library from Supabase, then shows the app.
 struct SignedInLibraryView: View {
     let user: AuthUser
-    var makeRepository: () -> LibraryRepository = { SupabaseLibraryRepository() }
+    var makeRepository: ((UUID) -> LibraryRepository) = { SupabaseLibraryRepository(userId: $0) }
 
     @Environment(AuthService.self) private var auth
     @State private var phase = Phase.loading
@@ -44,11 +44,13 @@ struct SignedInLibraryView: View {
             MainTabView()
                 .environment(store)
                 .task { await store.backfillCovers() }
+                // Signing out (or switching accounts) ends this library's saving.
+                .onDisappear { store.stopSync() }
         }
     }
 
     private func load() async {
-        let repository = makeRepository()
+        let repository = makeRepository(user.id)
         do {
             let snapshot = try await repository.loadLibrary()
             let store = LibraryStore.loaded(snapshot, userId: user.id, sync: LibrarySync(repository: repository),

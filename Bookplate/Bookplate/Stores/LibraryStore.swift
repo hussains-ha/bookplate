@@ -42,6 +42,7 @@ final class LibraryStore {
     var syncStatus: LibrarySync.Status { sync?.status ?? .idle }
     func retrySync() { sync?.retryNow() }
     func dismissSyncRejection() { sync?.dismissRejection() }
+    func stopSync() { sync?.stop() }
 
     // MARK: Saving
 
