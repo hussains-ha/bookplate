@@ -40,6 +40,7 @@ struct AuthPrimaryLabel: View {
         Group {
             if isWorking {
                 ProgressView().tint(.white)
+                    .accessibilityLabel("\(title), in progress")
             } else {
                 Text(title)
             }

@@ -14,6 +14,7 @@ struct SignupView: View {
     @State private var isWorking = false
 
     private func signUp() async {
+        error = nil
         isWorking = true
         defer { isWorking = false }
         do {
