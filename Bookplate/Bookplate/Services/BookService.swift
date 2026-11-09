@@ -51,10 +51,23 @@ struct BookRow: Codable, Equatable {
         id = book.id
         title = book.title
         authors = book.authors
-        pageCount = book.pageCount
+        // Some lookups report 0 pages; the column only allows positive counts.
+        pageCount = book.pageCount.flatMap { $0 > 0 ? $0 : nil }
         coverUrl = book.coverUrl?.absoluteString
         isbn13 = book.isbn13
         coverLookupAttempted = book.coverLookupAttempted
+    }
+
+    /// Writes every column, including nil ones, so saving a cleared value clears it on the server.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(authors, forKey: .authors)
+        try container.encode(pageCount, forKey: .pageCount)
+        try container.encode(coverUrl, forKey: .coverUrl)
+        try container.encode(isbn13, forKey: .isbn13)
+        try container.encode(coverLookupAttempted, forKey: .coverLookupAttempted)
     }
 
     var book: Book {
@@ -89,14 +102,26 @@ struct BookService: BookRepository {
         try await run { try await table.delete().eq("id", value: id).execute() }
     }
 
-    /// Checks for a session, runs the request and maps any error to `BookServiceError`.
+    /// Makes sure there's a valid session, runs the request and maps any error to `BookServiceError`.
     @discardableResult
     private func run<T>(_ request: () async throws -> T) async throws(BookServiceError) -> T {
-        guard client.auth.currentSession != nil else { throw .notSignedIn }
+        try await Self.requireSession(client)
         do {
             return try await request()
         } catch {
             throw Self.failure(from: error)
+        }
+    }
+
+    /// Refreshes an expired access token, or throws. Without this, a failed refresh makes the SDK
+    /// send the request with no token, so it runs signed out and RLS returns no rows instead of an error.
+    static func requireSession(_ client: SupabaseClient) async throws(BookServiceError) {
+        do {
+            _ = try await client.auth.session
+        } catch is URLError {
+            throw .network
+        } catch {
+            throw .notSignedIn
         }
     }
 

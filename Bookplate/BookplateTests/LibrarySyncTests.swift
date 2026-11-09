@@ -109,6 +109,73 @@ struct LibrarySyncTests {
 }
 
 @MainActor
+struct LibrarySyncReviewTests {
+    private let book = Book(id: "book-1", title: "One", authors: [], pageCount: nil, coverUrl: nil, isbn13: nil)
+
+    private func meta(notes: String?) -> BookMeta {
+        BookMeta(bookId: "book-1", status: "want", rating: nil, notes: notes, notePhotos: [], tags: [],
+                 customCover: nil, addedDate: Date(timeIntervalSince1970: 0), startedDate: nil, finishedDate: nil)
+    }
+
+    @Test func burstsOfSavesForTheSameItemCollapse() async {
+        let repo = InMemoryLibraryRepository()
+        // Nothing is sent until the test lets it: the first apply fails once and waits.
+        let flaky = FlakyLibraryRepository(repo, failures: 1)
+        let sync = LibrarySync(repository: flaky, retryDelays: [.seconds(3600)], sleep: { try await Task.sleep(for: $0) })
+        sync.enqueue(.saveBook(book))
+        while sync.status == .saving || sync.status == .idle { await Task.yield() }
+        for notes in ["a", "ab", "abc"] { sync.enqueue(.saveMeta(meta(notes: notes))) }
+        sync.enqueue(.setShelfBooks(shelfId: "s", bookIds: ["x"]))
+        sync.enqueue(.setShelfBooks(shelfId: "s", bookIds: ["y"]))
+        #expect(sync.pending == [.saveBook(book), .saveMeta(meta(notes: "abc")), .setShelfBooks(shelfId: "s", bookIds: ["y"])])
+        sync.stop()
+    }
+
+    @Test func stopDiscardsTheQueueAndIgnoresNewChanges() async {
+        let flaky = FlakyLibraryRepository(failures: .max)
+        let sync = LibrarySync(repository: flaky, retryDelays: [.seconds(3600)], sleep: { try await Task.sleep(for: $0) })
+        sync.enqueue(.saveBook(book))
+        while sync.status == .saving || sync.status == .idle { await Task.yield() }
+        sync.stop()
+        await sync.waitUntilIdle()
+        sync.enqueue(.saveBook(book))
+        #expect(sync.pending.isEmpty)
+        #expect(sync.status == .idle)
+        #expect(flaky.inner.applied.isEmpty)
+    }
+
+    @Test func rejectionStaysVisibleUntilDismissed() async {
+        let repo = InMemoryLibraryRepository()
+        let flaky = FlakyLibraryRepository(repo)
+        let sync = LibrarySync(repository: flaky, retryDelays: [.zero], sleep: { _ in })
+        sync.enqueue(.saveMeta(meta(notes: nil)))   // no such book: refused
+        await sync.waitUntilIdle()
+        flaky.failures = 1                           // then a network blip that recovers
+        sync.enqueue(.saveBook(book))
+        await sync.waitUntilIdle()
+        guard case .rejected = sync.status else {
+            Issue.record("rejection notice lost: \(sync.status)")
+            return
+        }
+        sync.dismissRejection()
+        #expect(sync.status == .idle)
+    }
+
+    @Test func clearedDetailsAreSentAsNull() throws {
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(BookMetaRow(meta(notes: nil)))) as? [String: Any]
+        for column in ["rating", "notes", "started_at", "finished_at"] {
+            #expect(json?[column] is NSNull, "\(column) should be sent as null")
+        }
+    }
+
+    @Test func shelfBooksSkipUnknownBooks() async throws {
+        let repo = InMemoryLibraryRepository(LibrarySnapshot(books: [book], shelves: [Shelf(id: "s", name: "S", bookIds: [])]))
+        try await repo.apply(.setShelfBooks(shelfId: "s", bookIds: ["ghost", "book-1"]))
+        #expect(repo.snapshot.shelves[0].bookIds == ["book-1"])
+    }
+}
+
+@MainActor
 struct LibraryStoreSyncTests {
     private func makeStore(_ repo: InMemoryLibraryRepository) async throws -> (LibraryStore, LibrarySync) {
         let sync = LibrarySync(repository: repo, retryDelays: [.zero], sleep: { _ in })

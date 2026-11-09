@@ -66,6 +66,20 @@ struct BookMetaRow: Codable, Equatable {
         finishedAt = meta.finishedDate
     }
 
+    /// Writes every column, including nil ones: an upsert only updates the columns it's sent,
+    /// so leaving out a cleared rating or note would keep the old value on the server.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(bookId, forKey: .bookId)
+        try container.encode(status, forKey: .status)
+        try container.encode(rating, forKey: .rating)
+        try container.encode(notes, forKey: .notes)
+        try container.encode(tags, forKey: .tags)
+        try container.encode(addedAt, forKey: .addedAt)
+        try container.encode(startedAt, forKey: .startedAt)
+        try container.encode(finishedAt, forKey: .finishedAt)
+    }
+
     var meta: BookMeta {
         BookMeta(bookId: bookId, status: status, rating: rating, notes: notes, notePhotos: [], tags: tags,
                  customCover: nil, addedDate: addedAt, startedDate: startedAt, finishedDate: finishedAt)
@@ -149,6 +163,9 @@ extension LibrarySnapshot {
 // MARK: Supabase
 
 struct SupabaseLibraryRepository: LibraryRepository {
+    /// The account this library belongs to. Requests fail with `.notSignedIn` if a different
+    /// account is signed in, so one user's queued changes never land in another's library.
+    let userId: UUID
     var client: SupabaseClient = SupabaseService.client
 
     func loadLibrary() async throws(BookServiceError) -> LibrarySnapshot {
@@ -225,7 +242,8 @@ struct SupabaseLibraryRepository: LibraryRepository {
     }
 
     private func run<T>(_ request: () async throws -> T) async throws(BookServiceError) -> T {
-        guard client.auth.currentSession != nil else { throw .notSignedIn }
+        try await BookService.requireSession(client)
+        guard client.auth.currentUser?.id == userId else { throw .notSignedIn }
         do {
             return try await request()
         } catch {
@@ -262,8 +280,8 @@ extension LibrarySnapshot {
             shelves.insert(saved, at: min(position, shelves.count))
         case .setShelfBooks(let shelfId, let bookIds):
             guard let i = shelves.firstIndex(where: { $0.id == shelfId }) else { throw .rejected("No shelf \(shelfId)") }
-            for id in bookIds { try requireBook(id) }
-            shelves[i].bookIds = bookIds
+            // Like `set_shelf_books`: unknown books are skipped.
+            shelves[i].bookIds = bookIds.filter(hasBook)
         case .saveList(let list, let position):
             let existing = lists.first { $0.id == list.id }?.bookIds ?? []
             lists.removeAll { $0.id == list.id }
@@ -272,8 +290,7 @@ extension LibrarySnapshot {
             lists.insert(saved, at: min(position, lists.count))
         case .setListBooks(let listId, let bookIds):
             guard let i = lists.firstIndex(where: { $0.id == listId }) else { throw .rejected("No list \(listId)") }
-            for id in bookIds { try requireBook(id) }
-            lists[i].bookIds = bookIds
+            lists[i].bookIds = bookIds.filter(hasBook)
         }
     }
 
@@ -290,6 +307,10 @@ extension LibrarySnapshot {
         }
         // A book added and then deleted before either was saved isn't missing.
         return missing.filter { book in books.contains { $0.id == book.id } }
+    }
+
+    private func hasBook(_ id: String) -> Bool {
+        books.contains { $0.id == id }
     }
 
     private func requireBook(_ id: String) throws(BookServiceError) {

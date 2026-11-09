@@ -4,7 +4,7 @@ import SwiftUI
 /// Changes left over from a previous session that never reached the server are shown and sent again.
 struct SignedInLibraryView: View {
     let user: AuthUser
-    var makeRepository: () -> LibraryRepository = { SupabaseLibraryRepository() }
+    var makeRepository: ((UUID) -> LibraryRepository) = { SupabaseLibraryRepository(userId: $0) }
 
     @Environment(AuthService.self) private var auth
     @State private var phase = Phase.loading
@@ -47,6 +47,8 @@ struct SignedInLibraryView: View {
             MainTabView()
                 .environment(store)
                 .task { await store.backfillCovers() }
+                // Signing out (or switching accounts) ends this library's saving.
+                .onDisappear { store.stopSync() }
                 .alert(Self.unsavedTitle(unsavedTitles.count), isPresented: Binding(
                     get: { !unsavedTitles.isEmpty },
                     set: { if !$0 { unsavedTitles = [] } }
@@ -69,7 +71,7 @@ struct SignedInLibraryView: View {
     }
 
     private func load() async {
-        let repository = makeRepository()
+        let repository = makeRepository(user.id)
         let pendingFile = try? PendingChangesFile.forUser(user.id)
         let leftover = pendingFile?.load() ?? []
         do {
