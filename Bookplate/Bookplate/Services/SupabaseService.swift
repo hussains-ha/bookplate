@@ -54,7 +54,9 @@ enum SupabaseService {
             return SupabaseClient(
                 supabaseURL: config.url,
                 supabaseKey: config.key,
-                // Emit the Keychain session right away on launch; AuthService handles expiry.
+                // Emit the Keychain session right away on launch, even if its access token has expired.
+                // The SDK refreshes it in the background and emits `.signedOut` if the refresh token is
+                // revoked; data requests refresh the token first (see `BookService.run`).
                 options: SupabaseClientOptions(auth: .init(emitLocalSessionAsInitialSession: true))
             )
         } catch {

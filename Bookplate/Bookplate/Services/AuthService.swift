@@ -31,7 +31,7 @@ enum AuthFailure: Error, Equatable, LocalizedError {
         case .invalidCredentials: "Incorrect email or password."
         case .emailTaken: "An account with this email already exists."
         case .weakPassword(let message): message
-        case .confirmationRequired: "Check your email to confirm your account, then sign in."
+        case .confirmationRequired: "If this is a new account, check your email for a confirmation link, then sign in."
         case .network: "Can't reach Bookplate. Check your connection and try again."
         case .other(let message): message
         }
@@ -77,6 +77,8 @@ final class AuthService {
             if state == .bypassed && account == nil { continue }
             state = account.map(State.signedIn) ?? .signedOut
         }
+        // The stream only ends if the backend shuts down; don't leave the spinner up forever.
+        if state == .loading { state = .signedOut }
     }
 
     func signIn(email: String, password: String) async throws(AuthFailure) {

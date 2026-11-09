@@ -142,6 +142,25 @@ struct AuthServiceTests {
         }
     }
 
+    @Test func signingOutElsewhereReturnsToLogin() async {
+        let auth = service()
+        await observing(auth) {
+            backend.emit(reader)
+            await Task.yield()
+            #expect(auth.state == .signedIn(reader))
+            backend.emit(nil)   // sign out, or the SDK revoking an expired session
+            await Task.yield()
+            #expect(auth.state == .signedOut)
+            #expect(auth.user == nil)
+        }
+    }
+
+    @Test func streamEndingWhileLoadingShowsLogin() async {
+        let auth = service()
+        await observing(auth) {}
+        #expect(auth.state == .signedOut)
+    }
+
     @Test func errorMessagesAreUserFacing() {
         #expect(AuthFailure.invalidCredentials.localizedDescription == "Incorrect email or password.")
         #expect(AuthFailure.passwordTooShort(minimum: 6).localizedDescription == "Password must be at least 6 characters.")
