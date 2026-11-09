@@ -57,7 +57,8 @@ struct AuthErrorText: View {
     var body: some View {
         Text(error.localizedDescription)
             .font(.footnote)
-            .foregroundStyle(.red)
+            // Confirmation is a next step, not a failure.
+            .foregroundStyle(error == .confirmationRequired ? Theme.brown : .red)
             .multilineTextAlignment(.center)
     }
 }

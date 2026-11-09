@@ -33,7 +33,7 @@ Before the first run, set up the Supabase key (see [Backend setup](#backend-setu
 
 Accounts use Supabase Auth with email and password (`Services/AuthService.swift`). Create one from **Create account**; the session is kept in the Keychain, so you stay signed in across launches. Sign out from the Settings tab.
 
-Email confirmation is turned off in the Supabase dashboard, so a new account is signed in right away. **Skip to library (dev)** still opens the app without an account.
+Email confirmation is on: after **Create account**, confirm from the email Supabase sends, then sign in. (The link's redirect page may not load on a phone yet; the account is confirmed anyway.) **Skip to library (dev)** still opens the app without an account.
 
 ## Project structure
 
