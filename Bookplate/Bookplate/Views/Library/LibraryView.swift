@@ -5,6 +5,7 @@ struct LibraryView: View {
 
     @State private var query = ""
     @State private var showingAddBook = false
+    @State private var selectedBook: Book?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -23,6 +24,7 @@ struct LibraryView: View {
                             shelf: shelf,
                             books: store.books(on: shelf, matching: query),
                             isReorderEnabled: query.isEmpty,
+                            onSelect: { selectedBook = $0 },
                             onMove: { bookId, index in store.moveBook(bookId, onShelf: shelf.id, to: index) }
                         )
                     }
@@ -36,6 +38,9 @@ struct LibraryView: View {
         .background(Theme.background.ignoresSafeArea())
         .sheet(isPresented: $showingAddBook) {
             AddBookView(defaultShelfId: store.defaultShelfId)
+        }
+        .sheet(item: $selectedBook) { book in
+            BookDetailView(bookId: book.id)
         }
     }
 

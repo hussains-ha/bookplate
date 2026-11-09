@@ -4,7 +4,7 @@
     "title": "Atomic Habits",
     "authors": ["James Clear"],
     "pageCount": 320,
-    "coverUrl": "https://covers.openlibrary.org/b/isbn/9780735211292-L.jpg",
+    "coverUrl": "https://covers.openlibrary.org/b/isbn/9780735211292-L.jpg?default=false",
     "isbn13": "9780735211292"
   },
   {
@@ -12,7 +12,7 @@
     "title": "Dune",
     "authors": ["Frank Herbert"],
     "pageCount": 688,
-    "coverUrl": "https://covers.openlibrary.org/b/isbn/9780441013593-L.jpg",
+    "coverUrl": "https://covers.openlibrary.org/b/isbn/9780441013593-L.jpg?default=false",
     "isbn13": "9780441013593"
   },
   {
@@ -20,7 +20,7 @@
     "title": "Educated",
     "authors": ["Tara Westover"],
     "pageCount": 352,
-    "coverUrl": "https://covers.openlibrary.org/b/isbn/9780399590504-L.jpg",
+    "coverUrl": "https://covers.openlibrary.org/b/isbn/9780399590504-L.jpg?default=false",
     "isbn13": "9780399590504"
   },
   {
