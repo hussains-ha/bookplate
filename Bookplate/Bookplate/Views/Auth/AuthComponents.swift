@@ -34,13 +34,31 @@ struct AuthTextField: View {
 
 struct AuthPrimaryLabel: View {
     let title: String
+    var isWorking = false
 
     var body: some View {
-        Text(title)
+        Group {
+            if isWorking {
+                ProgressView().tint(.white)
+            } else {
+                Text(title)
+            }
+        }
             .font(.subheadline.weight(.semibold))
             .frame(maxWidth: .infinity, minHeight: 48)
             .foregroundStyle(.white)
             .background(Theme.brown, in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+struct AuthErrorText: View {
+    let error: AuthFailure
+
+    var body: some View {
+        Text(error.localizedDescription)
+            .font(.footnote)
+            .foregroundStyle(.red)
+            .multilineTextAlignment(.center)
     }
 }
 

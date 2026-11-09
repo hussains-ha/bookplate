@@ -6,7 +6,7 @@ Bookplate is a SwiftUI app for tracking the books you read. Your collection is d
 
 | Area | Status |
 |---|---|
-| Login / sign-up | Screens only. No real accounts (see [Signing in](#signing-in)) |
+| Login / sign-up | Supabase email/password accounts (see [Signing in](#signing-in)) |
 | Library tab | Bookcase drawn from bundled sample JSON, search by title or author |
 | Add book | Manual entry of title, author, page count and shelf, with a duplicate warning |
 | Lists, Stats, Settings tabs | Empty placeholders |
@@ -31,10 +31,9 @@ Before the first run, set up the Supabase key (see [Backend setup](#backend-setu
 
 ### Signing in
 
-Login is hard-coded until there's an auth service (`LoginView.signIn()`):
+Accounts use Supabase Auth with email and password (`Services/AuthService.swift`). Create one from **Create account**; the session is kept in the Keychain, so you stay signed in across launches. Sign out from the Settings tab.
 
-- username `devuser`, password `pass`, or
-- **Skip to library (dev)**, which appears on both the login and sign-up screens
+Email confirmation is turned off in the Supabase dashboard, so a new account is signed in right away. **Skip to library (dev)** still opens the app without an account.
 
 ## Project structure
 

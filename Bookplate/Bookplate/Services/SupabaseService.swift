@@ -51,7 +51,12 @@ enum SupabaseService {
     static let client: SupabaseClient = {
         do {
             let config = try SupabaseConfig(info: Bundle.main.infoDictionary ?? [:])
-            return SupabaseClient(supabaseURL: config.url, supabaseKey: config.key)
+            return SupabaseClient(
+                supabaseURL: config.url,
+                supabaseKey: config.key,
+                // Emit the Keychain session right away on launch; AuthService handles expiry.
+                options: SupabaseClientOptions(auth: .init(emitLocalSessionAsInitialSession: true))
+            )
         } catch {
             fatalError("Supabase is not configured: \(error)")
         }
