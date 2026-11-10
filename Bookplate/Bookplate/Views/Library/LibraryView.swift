@@ -302,11 +302,13 @@ struct LibraryView: View {
         HStack(spacing: 0) {
             Button { withAnimation(.snappy) { zoom = zoom.zoomedOut() } } label: {
                 Image(systemName: "minus").frame(width: 32, height: 40)
+                    .opacity(zoom.canZoomOut ? 1 : 0.3)
             }
             .disabled(!zoom.canZoomOut)
             .accessibilityLabel("Zoom out")
             Button { withAnimation(.snappy) { zoom = zoom.zoomedIn() } } label: {
                 Image(systemName: "plus").frame(width: 32, height: 40)
+                    .opacity(zoom.canZoomIn ? 1 : 0.3)
             }
             .disabled(!zoom.canZoomIn)
             .accessibilityLabel("Zoom in")
