@@ -10,6 +10,11 @@ struct ShelfView: View {
     var onToggleLock: () -> Void = {}
     var onSelect: (Book) -> Void = { _ in }
     var onMove: (_ bookId: String, _ toIndex: Int) -> Void = { _, _ in }
+    /// Returns why the name was rejected, or nil once it's saved.
+    var onRename: (String) -> LibraryStore.ShelfNameProblem? = { _ in nil }
+    /// Nil when the shelf is already at the top (or bottom).
+    var onMoveUp: (() -> Void)?
+    var onMoveDown: (() -> Void)?
 
     private static let spacing: CGFloat = 2
     private static let holdDuration = 0.25
@@ -26,6 +31,11 @@ struct ShelfView: View {
     @State private var scrollPosition = ScrollPosition(edge: .leading)
     @State private var shelfSize: CGSize = .zero
     @GestureState private var gestureActive = false
+    @State private var draftName: String?
+    @State private var renameProblem: LibraryStore.ShelfNameProblem?
+    @FocusState private var isNameFocused: Bool
+    /// Return ends editing even when the name is rejected; this keeps that from counting as "tapped away".
+    @State private var keepEditingAfterSubmit = false
 
     private struct ScrollMetrics: Equatable {
         var offsetX: CGFloat = 0
@@ -65,21 +75,12 @@ struct ShelfView: View {
             }
 
             HStack {
-                HStack(spacing: 3) {
-                    if shelf.isLocked {
-                        Image(systemName: "lock.fill").accessibilityLabel("Locked")
-                    }
-                    Text(shelf.name)
-                }
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(Theme.brown)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1)
-                .background(Theme.label, in: RoundedRectangle(cornerRadius: 1))
-                .contextMenu {
-                    Button(shelf.isLocked ? "Unlock Shelf" : "Lock Shelf",
-                           systemImage: shelf.isLocked ? "lock.open" : "lock",
-                           action: onToggleLock)
+                nameLabel
+                if let renameProblem {
+                    Text(renameProblem.message)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Theme.label)
+                        .lineLimit(1)
                 }
                 Spacer()
                 Text("\(books.count)")
@@ -102,6 +103,91 @@ struct ShelfView: View {
             if pickedId != nil, pickedIndex == nil { finish(drop: false) }
         }
         .task(id: pickedId) { await autoScrollWhilePicked() }
+    }
+
+    // MARK: Name plate
+
+    @ViewBuilder
+    private var nameLabel: some View {
+        if let draft = draftName {
+            TextField("Shelf name", text: Binding(
+                get: { draft },
+                set: { draftName = String($0.prefix(LibraryStore.maxShelfNameLength)); renameProblem = nil }
+            ))
+            .focused($isNameFocused)
+            .submitLabel(.done)
+            .onSubmit(commitRename)
+            .onKeyPress(.escape) {
+                cancelRename()
+                return .handled
+            }
+            .onChange(of: isNameFocused) { _, focused in
+                // Tapping away cancels, like Escape.
+                guard !focused else { return }
+                if keepEditingAfterSubmit {
+                    keepEditingAfterSubmit = false
+                    Task { isNameFocused = true }
+                } else {
+                    cancelRename()
+                }
+            }
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(Theme.brown)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .frame(maxWidth: 220)
+            .background(Theme.label, in: RoundedRectangle(cornerRadius: 1))
+            .accessibilityLabel("Shelf name")
+        } else {
+            HStack(spacing: 3) {
+                if shelf.isLocked {
+                    Image(systemName: "lock.fill").accessibilityLabel("Locked")
+                }
+                Text(shelf.name)
+            }
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(Theme.brown)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(Theme.label, in: RoundedRectangle(cornerRadius: 1))
+            .contentShape(Rectangle())
+            .onTapGesture(perform: startRename)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Tap to rename")
+            .contextMenu {
+                Button("Rename", systemImage: "pencil", action: startRename)
+                if let onMoveUp {
+                    Button("Move Up", systemImage: "arrow.up", action: onMoveUp)
+                }
+                if let onMoveDown {
+                    Button("Move Down", systemImage: "arrow.down", action: onMoveDown)
+                }
+                Button(shelf.isLocked ? "Unlock Shelf" : "Lock Shelf",
+                       systemImage: shelf.isLocked ? "lock.open" : "lock",
+                       action: onToggleLock)
+            }
+        }
+    }
+
+    private func startRename() {
+        renameProblem = nil
+        draftName = shelf.name
+        isNameFocused = true
+    }
+
+    private func commitRename() {
+        guard let draft = draftName else { return }
+        if let problem = onRename(draft) {
+            renameProblem = problem
+            keepEditingAfterSubmit = true     // keep the field open to fix the name
+        } else {
+            draftName = nil
+        }
+    }
+
+    private func cancelRename() {
+        draftName = nil
+        renameProblem = nil
     }
 
     // MARK: Spines

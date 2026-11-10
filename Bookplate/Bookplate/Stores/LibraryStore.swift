@@ -91,13 +91,15 @@ final class LibraryStore {
         }
     }
 
-    /// Why a name can't be used for a new shelf, or nil if it can. Names are compared trimmed and ignoring case.
-    func shelfNameProblem(_ name: String) -> ShelfNameProblem? {
+    /// Why a name can't be used for a shelf, or nil if it can. Names are compared trimmed and ignoring case.
+    /// Pass the shelf being renamed as `excluding` so it doesn't clash with its own name.
+    func shelfNameProblem(_ name: String, excluding shelfId: String? = nil) -> ShelfNameProblem? {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         if name.isEmpty { return .blank }
         if name.count > Self.maxShelfNameLength { return .tooLong }
         let taken = bookshelf.shelves.contains {
-            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(name) == .orderedSame
+            $0.id != shelfId
+                && $0.name.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(name) == .orderedSame
         }
         return taken ? .duplicate : nil
     }
@@ -114,6 +116,29 @@ final class LibraryStore {
         bookshelf.shelves.append(shelf)
         saveShelf(at: bookshelf.shelves.count - 1)
         return shelf
+    }
+
+    /// Renames a shelf (locked or not). Returns the problem, changing nothing, if the name can't be used.
+    @discardableResult
+    func renameShelf(_ shelfId: String, to name: String) -> ShelfNameProblem? {
+        guard let index = bookshelf.shelves.firstIndex(where: { $0.id == shelfId }) else { return nil }
+        if let problem = shelfNameProblem(name, excluding: shelfId) { return problem }
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard name != bookshelf.shelves[index].name else { return nil }
+        bookshelf.shelves[index].name = name
+        saveShelf(at: index)
+        return nil
+    }
+
+    /// Moves a shelf (locked or not) to a new spot in the bookcase, clamped to the ends.
+    /// Every shelf whose position changed is saved.
+    func moveShelf(_ shelfId: String, to index: Int) {
+        guard let from = bookshelf.shelves.firstIndex(where: { $0.id == shelfId }) else { return }
+        let to = min(max(index, 0), bookshelf.shelves.count - 1)
+        guard to != from else { return }
+        let shelf = bookshelf.shelves.remove(at: from)
+        bookshelf.shelves.insert(shelf, at: to)
+        for i in min(from, to)...max(from, to) { saveShelf(at: i) }
     }
 
     /// True when there are shelves but none can take new books.

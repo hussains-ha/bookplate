@@ -20,14 +20,18 @@ struct LibraryView: View {
 
             ScrollView {
                 VStack(spacing: 14) {
-                    ForEach(store.bookshelf.shelves) { shelf in
+                    ForEach(Array(store.bookshelf.shelves.enumerated()), id: \.element.id) { index, shelf in
                         ShelfView(
                             shelf: shelf,
                             books: store.books(on: shelf, matching: query),
                             isReorderEnabled: query.isEmpty,
                             onToggleLock: { store.setLocked(!shelf.isLocked, onShelf: shelf.id) },
                             onSelect: { selectedBook = $0 },
-                            onMove: { bookId, index in store.moveBook(bookId, onShelf: shelf.id, to: index) }
+                            onMove: { bookId, to in store.moveBook(bookId, onShelf: shelf.id, to: to) },
+                            onRename: { store.renameShelf(shelf.id, to: $0) },
+                            onMoveUp: index > 0 ? { withAnimation(.snappy) { store.moveShelf(shelf.id, to: index - 1) } } : nil,
+                            onMoveDown: index < store.bookshelf.shelves.count - 1
+                                ? { withAnimation(.snappy) { store.moveShelf(shelf.id, to: index + 1) } } : nil
                         )
                     }
                 }
