@@ -45,7 +45,7 @@ struct AddShelfView: View {
             }
             .onAppear { isFocused = true }
         }
-        .presentationDetents([.height(220)])
+        .presentationDetents([.height(220), .medium])
         .presentationBackground(Theme.background)
     }
 

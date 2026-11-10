@@ -131,14 +131,14 @@ final class LibraryStore {
     }
 
     /// Moves a shelf (locked or not) to a new spot in the bookcase, clamped to the ends.
-    /// Every shelf whose position changed is saved.
+    /// Every shelf's position is saved, which also repairs positions that drifted (e.g. edits from two devices).
     func moveShelf(_ shelfId: String, to index: Int) {
         guard let from = bookshelf.shelves.firstIndex(where: { $0.id == shelfId }) else { return }
         let to = min(max(index, 0), bookshelf.shelves.count - 1)
         guard to != from else { return }
         let shelf = bookshelf.shelves.remove(at: from)
         bookshelf.shelves.insert(shelf, at: to)
-        for i in min(from, to)...max(from, to) { saveShelf(at: i) }
+        for i in bookshelf.shelves.indices { saveShelf(at: i) }
     }
 
     /// True when there are shelves but none can take new books.

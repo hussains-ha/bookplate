@@ -88,9 +88,33 @@ struct RenameReorderShelfTests {
         store.moveShelf("s-D", to: 1)
         await sync.waitUntilIdle()
 
-        #expect(repo.applied.count == 4)           // the rename + shelves at positions 1...3
+        #expect(repo.applied.count == 5)           // the rename + every shelf's position
         #expect(repo.snapshot.shelves.map(\.name) == ["First", "D", "B", "C"])
         // What a reload would show.
         #expect(try await repo.loadLibrary().shelves.map(\.name) == store.bookshelf.shelves.map(\.name))
+    }
+
+    @Test func moveResavesEveryPosition() async throws {
+        let shelves = ["A", "B", "C", "D"].map { Shelf(id: "s-\($0)", name: $0, bookIds: []) }
+        let repo = InMemoryLibraryRepository(LibrarySnapshot(shelves: shelves))
+        let sync = LibrarySync(repository: repo, pendingFile: nil, retryDelays: [.zero], sleep: { _ in })
+        let store = LibraryStore.loaded(try await repo.loadLibrary(), userId: UUID(), sync: sync,
+                                        localFiles: nil, coverLookup: NoCoverLookup())
+        store.moveShelf("s-A", to: 1)
+        await sync.waitUntilIdle()
+        let positions = repo.applied.compactMap { change -> Int? in
+            if case .saveShelf(_, let position) = change { position } else { nil }
+        }
+        #expect(positions == [0, 1, 2, 3])
+    }
+
+    @Test func tiedPositionsLoadInAStableOrder() {
+        let rows = [CollectionRow(id: "z", name: "Z", position: 1, isLocked: false),
+                    CollectionRow(id: "a", name: "A", position: 1, isLocked: false),
+                    CollectionRow(id: "m", name: "M", position: 0, isLocked: false)]
+        let first = LibrarySnapshot(books: [], metas: [], shelves: rows, shelfBooks: [], lists: [], listBooks: [])
+        let second = LibrarySnapshot(books: [], metas: [], shelves: rows.reversed(), shelfBooks: [], lists: [], listBooks: [])
+        #expect(first.shelves.map(\.id) == ["m", "a", "z"])
+        #expect(second.shelves.map(\.id) == first.shelves.map(\.id))
     }
 }

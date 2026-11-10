@@ -39,9 +39,11 @@ struct LibraryView: View {
             }
             .background(Theme.wood, in: RoundedRectangle(cornerRadius: 6))
         }
-        .contentShape(Rectangle())
-        // Tapping a blank spot ends editing (e.g. cancels a shelf rename). Spines and plates handle their own taps first.
-        .onTapGesture(perform: endEditing)
+        // Tapping a blank spot ends editing (e.g. cancels a shelf rename). On a background layer, so taps
+        // inside text fields, spines and plates never reach it.
+        .background {
+            Color.clear.contentShape(Rectangle()).onTapGesture(perform: endEditing)
+        }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.background.ignoresSafeArea())

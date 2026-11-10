@@ -123,6 +123,8 @@ struct ShelfView: View {
                 }
             ))
             .focused($isNameFocused)
+            // Focus once the field exists (setting it in the same update that inserts the field is unreliable).
+            .onAppear { Task { isNameFocused = true } }
             .submitLabel(.done)
             .onSubmit(commitRename)
             .onKeyPress(.escape) {
@@ -146,6 +148,7 @@ struct ShelfView: View {
             .frame(minWidth: 90, maxWidth: 220)
             .background(Theme.label, in: RoundedRectangle(cornerRadius: 1))
             .accessibilityLabel("Shelf name")
+            .accessibilityAction(.escape, cancelRename)
         } else {
             HStack(spacing: 3) {
                 if shelf.isLocked {
@@ -162,6 +165,10 @@ struct ShelfView: View {
             .onTapGesture(perform: startRename)
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("Tap to rename")
+            .accessibilityAction(named: "Rename", startRename)
+            .accessibilityAction(named: "Move Up") { onMoveUp?() }
+            .accessibilityAction(named: "Move Down") { onMoveDown?() }
+            .accessibilityAction(named: shelf.isLocked ? "Unlock Shelf" : "Lock Shelf", onToggleLock)
             .contextMenu {
                 Button("Rename", systemImage: "pencil", action: startRename)
                 if let onMoveUp {
@@ -179,8 +186,8 @@ struct ShelfView: View {
 
     private func startRename() {
         renameProblem = nil
+        keepEditingAfterSubmit = false
         draftName = shelf.name
-        isNameFocused = true
     }
 
     private func commitRename() {
@@ -188,14 +195,16 @@ struct ShelfView: View {
         if let problem = onRename(draft) {
             renameProblem = problem
             keepEditingAfterSubmit = true     // keep the field open to fix the name
+            AccessibilityNotification.Announcement(problem.message).post()
         } else {
-            draftName = nil
+            cancelRename()
         }
     }
 
     private func cancelRename() {
         draftName = nil
         renameProblem = nil
+        keepEditingAfterSubmit = false
     }
 
     // MARK: Spines

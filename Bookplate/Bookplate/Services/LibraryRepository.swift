@@ -151,10 +151,12 @@ extension LibrarySnapshot {
                 .sorted { $0.position < $1.position }
                 .map(\.bookId)
         }
-        self.shelves = shelves.sorted { $0.position < $1.position }.map {
+        // Ties (e.g. two devices adding a shelf at once) break by id, so the order is the same every launch.
+        func inOrder(_ a: CollectionRow, _ b: CollectionRow) -> Bool { (a.position, a.id) < (b.position, b.id) }
+        self.shelves = shelves.sorted(by: inOrder).map {
             Shelf(id: $0.id, name: $0.name, bookIds: ordered(shelfBooks, in: $0.id), isLocked: $0.isLocked ?? false)
         }
-        self.lists = lists.sorted { $0.position < $1.position }.map {
+        self.lists = lists.sorted(by: inOrder).map {
             BookList(id: $0.id, name: $0.name, bookIds: ordered(listBooks, in: $0.id))
         }
     }
