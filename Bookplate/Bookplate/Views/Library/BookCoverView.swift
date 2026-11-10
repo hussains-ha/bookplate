@@ -12,6 +12,8 @@ struct BookCoverView: View {
                 image
                     .resizable()
                     .scaledToFit()
+                    // Same drop shadow as the generated cover, which draws its own.
+                    .shadow(color: .black.opacity(0.3), radius: 4, x: 2, y: 3)
                     .transition(.opacity)
             default:
                 GeneratedCoverView(book: book)
@@ -19,34 +21,6 @@ struct BookCoverView: View {
         }
         .accessibilityElement()
         .accessibilityLabel(book.title)
-    }
-}
-
-/// The front cover drawn from a book's title, author and generated color.
-private struct GeneratedCoverView: View {
-    let book: Book
-
-    private var appearance: BookAppearance { BookAppearance(bookId: book.id) }
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Text(book.title)
-                .font(.system(size: 15, weight: .bold, design: .serif))
-                .multilineTextAlignment(.center)
-                .minimumScaleFactor(0.5)
-            if let author = book.authors.first {
-                Text(author)
-                    .font(.system(size: 9, weight: .regular, design: .serif))
-                    .multilineTextAlignment(.center)
-                    .opacity(0.85)
-            }
-        }
-        .foregroundStyle(appearance.textColor)
-        .padding(10)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .aspectRatio(2 / 3, contentMode: .fit)
-        .background(appearance.color)
-        .clipShape(RoundedRectangle(cornerRadius: 3))
     }
 }
 
