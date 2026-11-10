@@ -5,6 +5,7 @@ import SwiftUI
 struct BookDetailView: View {
     @Environment(LibraryStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     let bookId: String
     var imageStorage: ImageStorage = LocalImageStorage()
@@ -145,6 +146,15 @@ struct BookDetailView: View {
                     Text("On: " + shelves.map(\.name).joined(separator: ", "))
                         .font(.footnote)
                         .foregroundStyle(Theme.mutedText)
+                }
+                if KindleLink.isInstalled() {
+                    Button { openURL(KindleLink.url) } label: {
+                        Label("Open in Kindle", systemImage: "book")
+                            .font(.footnote.weight(.semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Theme.brown)
+                    .padding(.top, 6)
                 }
             }
         }
