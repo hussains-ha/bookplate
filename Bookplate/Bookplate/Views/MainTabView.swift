@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The main app shell. Only Library is built so far.
+/// The main app shell.
 struct MainTabView: View {
     @Environment(LibraryStore.self) private var store
 
@@ -8,7 +8,7 @@ struct MainTabView: View {
         TabView {
             LibraryView()
                 .tabItem { Label("Library", systemImage: "books.vertical") }
-            PlaceholderTab(title: "Lists")
+            ListsView()
                 .tabItem { Label("Lists", systemImage: "list.bullet") }
             StatsView()
                 .tabItem { Label("Stats", systemImage: "chart.bar") }
