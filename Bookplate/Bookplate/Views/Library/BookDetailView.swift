@@ -219,7 +219,7 @@ struct BookDetailView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(meta.notePhotos, id: \.self) { url in
-                            AsyncImage(url: url) { image in
+                            CachedImage(url: url) { image in
                                 image.resizable().scaledToFill()
                             } placeholder: {
                                 Theme.field
