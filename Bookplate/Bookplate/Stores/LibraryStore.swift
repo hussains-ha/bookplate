@@ -221,10 +221,79 @@ final class LibraryStore {
         lists.filter { $0.bookIds.contains(bookId) }
     }
 
+    static let maxListNameLength = 40
+
+    enum ListNameProblem: Equatable {
+        case blank, tooLong, duplicate
+
+        var message: String {
+            switch self {
+            case .blank: "Enter a name for the list."
+            case .tooLong: "List names can be up to \(LibraryStore.maxListNameLength) characters."
+            case .duplicate: "You already have a list with that name."
+            }
+        }
+    }
+
+    /// Why a name can't be used for a list, or nil if it can. Names are compared trimmed and ignoring case.
+    func listNameProblem(_ name: String) -> ListNameProblem? {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if name.isEmpty { return .blank }
+        if name.count > Self.maxListNameLength { return .tooLong }
+        let taken = lists.contains {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(name) == .orderedSame
+        }
+        return taken ? .duplicate : nil
+    }
+
+    /// Adds an empty list at the end. Returns nil, adding nothing, if the name can't be used.
+    @discardableResult
+    func addList(named name: String) -> BookList? {
+        guard listNameProblem(name) == nil else { return nil }
+        let list = BookList(id: "list-\(UUID().uuidString.lowercased())",
+                            name: name.trimmingCharacters(in: .whitespacesAndNewlines), bookIds: [])
+        addList(list)
+        return list
+    }
+
     func addList(_ list: BookList) {
         lists.append(list)
         save(.saveList(list, position: lists.count - 1))
         if !list.bookIds.isEmpty { saveListBooks(at: lists.count - 1) }
+    }
+
+    /// Deletes a list. Its books stay in the library.
+    func deleteList(_ listId: String) {
+        guard let index = lists.firstIndex(where: { $0.id == listId }) else { return }
+        lists.remove(at: index)
+        save(.deleteList(id: listId))
+        // Later lists move up one place.
+        for i in index..<lists.count { save(.saveList(lists[i], position: i)) }
+    }
+
+    /// A list on the Lists tab and the books it shows.
+    struct VisibleList: Equatable, Identifiable {
+        let list: BookList
+        let books: [Book]
+        var id: String { list.id }
+    }
+
+    /// Every list in order with its books (in list order, skipping ids with no book).
+    /// While searching, a list whose name matches shows all its books; any other list shows only
+    /// books whose title or author match, and is left out if none do.
+    func visibleLists(matching query: String = "") -> [VisibleList] {
+        let byId = Dictionary(books.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let needle = Self.normalize(query)
+        return lists.compactMap { list in
+            let books = list.bookIds.compactMap { byId[$0] }
+            guard !needle.isEmpty, !Self.normalize(list.name).contains(needle) else {
+                return VisibleList(list: list, books: books)
+            }
+            let matching = books.filter { book in
+                Self.normalize(book.title).contains(needle) || book.authors.contains { Self.normalize($0).contains(needle) }
+            }
+            return matching.isEmpty ? nil : VisibleList(list: list, books: matching)
+        }
     }
 
     /// Adds a book to a list, or removes it.

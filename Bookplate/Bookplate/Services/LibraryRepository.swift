@@ -25,6 +25,8 @@ enum LibraryChange: Codable, Equatable {
     case deleteShelf(id: String)
     case setShelfBooks(shelfId: String, bookIds: [String])
     case saveList(BookList, position: Int)
+    /// The database removes the list's book entries with it; the books themselves stay.
+    case deleteList(id: String)
     case setListBooks(listId: String, bookIds: [String])
     /// Uploads the custom cover saved on this device as `fileName` (in the images folder) and records it.
     /// If the file is gone (replaced since), there's nothing to upload and the change is skipped.
@@ -234,6 +236,8 @@ struct SupabaseLibraryRepository: LibraryRepository {
             case .saveList(let list, let position):
                 let row = CollectionRow(id: list.id, name: list.name, position: position)
                 try await client.from("lists").upsert(row, onConflict: "user_id,id", returning: .minimal).execute()
+            case .deleteList(let id):
+                try await client.from("lists").delete().eq("id", value: id).execute()
             case .setListBooks(let listId, let bookIds):
                 try await client.rpc("set_list_books", params: SetBooksParams(id: listId, bookIds: bookIds, idKey: "p_list_id")).execute()
             }
@@ -343,6 +347,8 @@ extension LibrarySnapshot {
             var saved = list
             saved.bookIds = existing
             lists.insert(saved, at: min(position, lists.count))
+        case .deleteList(let id):
+            lists.removeAll { $0.id == id }
         case .setListBooks(let listId, let bookIds):
             guard let i = lists.firstIndex(where: { $0.id == listId }) else { throw .rejected("No list \(listId)") }
             lists[i].bookIds = bookIds.filter(hasBook)
