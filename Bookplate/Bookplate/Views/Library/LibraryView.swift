@@ -5,6 +5,7 @@ struct LibraryView: View {
 
     @State private var query = ""
     @State private var showingAddBook = false
+    @State private var showingAddShelf = false
     @State private var selectedBook: Book?
 
     var body: some View {
@@ -40,6 +41,9 @@ struct LibraryView: View {
         .sheet(isPresented: $showingAddBook) {
             AddBookView(defaultShelfId: store.defaultShelfId)
         }
+        .sheet(isPresented: $showingAddShelf) {
+            AddShelfView()
+        }
         .sheet(item: $selectedBook) { book in
             BookDetailView(bookId: book.id)
         }
@@ -56,6 +60,16 @@ struct LibraryView: View {
                     .foregroundStyle(Theme.mutedText)
             }
             Spacer()
+            Menu {
+                Button("New Shelf", systemImage: "rectangle.stack.badge.plus") { showingAddShelf = true }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.headline)
+                    .foregroundStyle(Theme.brown)
+                    .frame(width: 40, height: 40)
+                    .background(Theme.brown.opacity(0.1), in: Circle())
+            }
+            .accessibilityLabel("Library options")
             Button { showingAddBook = true } label: {
                 Image(systemName: "plus")
                     .font(.headline)

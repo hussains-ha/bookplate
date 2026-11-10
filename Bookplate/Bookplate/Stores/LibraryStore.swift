@@ -75,6 +75,47 @@ final class LibraryStore {
     /// The shelf new books go to by default: the first one that isn't locked.
     var defaultShelfId: String? { bookshelf.shelves.first { !$0.isLocked }?.id }
 
+    // MARK: Shelves
+
+    static let maxShelfNameLength = 40
+
+    enum ShelfNameProblem: Equatable {
+        case blank, tooLong, duplicate
+
+        var message: String {
+            switch self {
+            case .blank: "Enter a name for the shelf."
+            case .tooLong: "Shelf names can be up to \(LibraryStore.maxShelfNameLength) characters."
+            case .duplicate: "You already have a shelf with that name."
+            }
+        }
+    }
+
+    /// Why a name can't be used for a new shelf, or nil if it can. Names are compared trimmed and ignoring case.
+    func shelfNameProblem(_ name: String) -> ShelfNameProblem? {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if name.isEmpty { return .blank }
+        if name.count > Self.maxShelfNameLength { return .tooLong }
+        let taken = bookshelf.shelves.contains {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(name) == .orderedSame
+        }
+        return taken ? .duplicate : nil
+    }
+
+    /// Adds an empty shelf at the bottom of the bookcase. Returns nil, adding nothing, if the name can't be used.
+    @discardableResult
+    func addShelf(named name: String) -> Shelf? {
+        guard shelfNameProblem(name) == nil else { return nil }
+        let shelf = Shelf(
+            id: "shelf-\(UUID().uuidString.lowercased())",
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            bookIds: []
+        )
+        bookshelf.shelves.append(shelf)
+        saveShelf(at: bookshelf.shelves.count - 1)
+        return shelf
+    }
+
     /// True when there are shelves but none can take new books.
     var allShelvesLocked: Bool { !bookshelf.shelves.isEmpty && bookshelf.shelves.allSatisfy(\.isLocked) }
 
