@@ -19,15 +19,18 @@ actor CoverImageLoader {
 
     let maxConcurrentDownloads: Int
     private let client: HTTPClient
+    /// Downloads stored custom covers (`bookplate-cover://` URLs). Set once signed in.
+    private var storage: CoverStorage?
     private let cacheFolder: URL?
     private let memory = NSCache<NSString, CGImage>()
     private var failed: Set<URL> = []
     private var activeDownloads = 0
     private var waiting: [CheckedContinuation<Void, Never>] = []
 
-    init(client: HTTPClient = URLSessionHTTPClient(), cacheFolder: URL? = CoverImageLoader.defaultCacheFolder(),
-         maxConcurrentDownloads: Int = 4) {
+    init(client: HTTPClient = URLSessionHTTPClient(), storage: CoverStorage? = nil,
+         cacheFolder: URL? = CoverImageLoader.defaultCacheFolder(), maxConcurrentDownloads: Int = 4) {
         self.client = client
+        self.storage = storage
         self.cacheFolder = cacheFolder
         self.maxConcurrentDownloads = maxConcurrentDownloads
         memory.countLimit = 300
@@ -58,6 +61,10 @@ actor CoverImageLoader {
         return image
     }
 
+    func setStorage(_ storage: CoverStorage?) {
+        self.storage = storage
+    }
+
     /// Whether `url` failed this session (for tests and diagnostics).
     func hasFailed(_ url: URL) -> Bool { failed.contains(url) }
 
@@ -77,11 +84,16 @@ actor CoverImageLoader {
 
         let data: Data
         do {
-            let (body, response) = try await client.data(for: URLRequest(url: url))
-            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-                throw LoadError.badResponse
+            if let path = CustomCoverPath.objectPath(from: url) {
+                guard let storage else { throw LoadError.badResponse }
+                data = try await storage.download(path: path)
+            } else {
+                let (body, response) = try await client.data(for: URLRequest(url: url))
+                if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                    throw LoadError.badResponse
+                }
+                data = body
             }
-            data = body
         } catch {
             // A cancelled load (view went away) isn't a broken URL; try again next time it's shown.
             if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {

@@ -71,6 +71,7 @@ struct SignedInLibraryView: View {
     }
 
     private func load() async {
+        await CoverImageLoader.shared.setStorage(SupabaseCoverStorage(client: SupabaseService.client))
         let repository = makeRepository(user.id)
         let pendingFile = try? PendingChangesFile.forUser(user.id)
         let leftover = pendingFile?.load() ?? []

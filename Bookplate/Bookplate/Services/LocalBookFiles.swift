@@ -1,8 +1,9 @@
 import Foundation
 
-/// Custom covers and note photos, which stay on the device until #36 uploads them.
-/// Saved per user as file names inside the image folder, since the app container path can change.
-// TODO(supabase): remove once covers and note photos are stored in Supabase Storage (#36).
+/// Custom covers and note photos picked on this device, saved per user as file names inside the
+/// image folder (the app container path can change). A local cover wins over the stored copy,
+/// so it shows at once and while its upload is pending. Note photos stay on the device only.
+// TODO(supabase): note photos are device-only; move them to Storage too if they should sync.
 struct LocalBookFiles {
     struct Entry: Codable, Equatable {
         var customCover: String?
@@ -33,7 +34,10 @@ struct LocalBookFiles {
         return metas.map { meta in
             guard let entry = entries[meta.bookId] else { return meta }
             var meta = meta
-            meta.customCover = entry.customCover.map(url)
+            // A missing file (e.g. a reinstall) falls back to the stored cover from the server.
+            if let local = entry.customCover.map(url), FileManager.default.fileExists(atPath: local.path) {
+                meta.customCover = local
+            }
             meta.notePhotos = entry.notePhotos.map(url)
             return meta
         }
@@ -43,7 +47,7 @@ struct LocalBookFiles {
     func save(_ metas: [BookMeta]) {
         var entries: [String: Entry] = [:]
         for meta in metas where meta.customCover != nil || !meta.notePhotos.isEmpty {
-            entries[meta.bookId] = Entry(customCover: meta.customCover?.lastPathComponent,
+            entries[meta.bookId] = Entry(customCover: meta.customCover.flatMap { $0.isFileURL ? $0.lastPathComponent : nil },
                                          notePhotos: meta.notePhotos.map(\.lastPathComponent))
         }
         try? JSONEncoder().encode(entries).write(to: fileURL, options: .atomic)
