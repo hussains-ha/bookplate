@@ -12,6 +12,10 @@ struct BookDetailView: View {
     @AppStorage("skipRemoveBookConfirmation") private var skipRemoveConfirmation = false
     @State private var showingRemoveConfirmation = false
     @State private var coverItem: PhotosPickerItem?
+    @State private var showingCoverLibrary = false
+    @State private var showingCamera = false
+    @State private var showingCameraDenied = false
+    @State private var showingCoverError = false
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var newTag = ""
 
@@ -48,6 +52,31 @@ struct BookDetailView: View {
             guard !items.isEmpty else { return }
             Task { await addPhotos(from: items) }
         }
+        .photosPicker(isPresented: $showingCoverLibrary, selection: $coverItem, matching: .images)
+        #if os(iOS)
+        .fullScreenCover(isPresented: $showingCamera) {
+            CameraPicker { image in
+                showingCamera = false
+                if let image { setCover(fromCamera: image) }
+            }
+            .ignoresSafeArea()
+        }
+        #endif
+        .alert("Camera access is off", isPresented: $showingCameraDenied) {
+            #if os(iOS)
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+            }
+            #endif
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("To take a cover photo, allow camera access for Bookplate in Settings.")
+        }
+        .alert("Couldn't use that photo", isPresented: $showingCoverError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Try a different photo.")
+        }
         .sheet(isPresented: $showingRemoveConfirmation) {
             RemoveBookConfirmation(skipNextTime: $skipRemoveConfirmation, onRemove: removeBook)
                 .presentationDetents([.height(280)])
@@ -82,13 +111,26 @@ struct BookDetailView: View {
             VStack(spacing: 8) {
                 BookCoverView(book: book, meta: meta)
                     .frame(width: 104)
-                PhotosPicker(selection: $coverItem, matching: .images) {
+                    .overlay(alignment: .bottomTrailing) {
+                        Menu {
+                            coverMenu(hasCustomCover: meta.customCover != nil)
+                        } label: {
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 30, height: 30)
+                                .background(Circle().fill(Theme.brown))
+                                .overlay(Circle().stroke(.white.opacity(0.8), lineWidth: 1.5))
+                        }
+                        .offset(x: 8, y: 8)
+                        .accessibilityLabel("Change cover")
+                    }
+                Menu {
+                    coverMenu(hasCustomCover: meta.customCover != nil)
+                } label: {
                     Text("Change Cover").font(.caption.weight(.semibold))
                 }
-                if meta.customCover != nil {
-                    Button("Reset Cover") { store.setCustomCover(nil, for: bookId) }
-                        .font(.caption)
-                }
+                .padding(.top, 6)
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(book.title)
@@ -231,11 +273,48 @@ struct BookDetailView: View {
         dismiss()
     }
 
-    // A picked image that can't be read or saved is skipped silently for now.
-    // TODO(supabase): show "Image too large." / upload errors once images go to a storage bucket.
+    @ViewBuilder
+    private func coverMenu(hasCustomCover: Bool) -> some View {
+        #if os(iOS)
+        if CameraAccess.current() != .unavailable {
+            Button("Take Photo", systemImage: "camera") { Task { await openCamera() } }
+        }
+        #endif
+        Button("Choose from Library", systemImage: "photo.on.rectangle") { showingCoverLibrary = true }
+        if hasCustomCover {
+            Button("Remove Custom Cover", systemImage: "trash", role: .destructive) {
+                store.setCustomCover(nil, for: bookId)
+            }
+        }
+    }
+
+    #if os(iOS)
+    private func openCamera() async {
+        if await CameraAccess.request() {
+            showingCamera = true
+        } else {
+            showingCameraDenied = true
+        }
+    }
+
+    private func setCover(fromCamera image: UIImage) {
+        guard let data = image.jpegData(compressionQuality: 1) else { showingCoverError = true; return }
+        saveCover(data)
+    }
+    #endif
+
     private func setCover(from item: PhotosPickerItem) async {
         defer { coverItem = nil }
-        guard let (data, ext) = await load(item), let url = try? imageStorage.save(data, fileExtension: ext) else { return }
+        guard let data = try? await item.loadTransferable(type: Data.self) else { showingCoverError = true; return }
+        saveCover(data)
+    }
+
+    /// Shrinks the photo to a ~1000px JPEG, saves it and points the book's custom cover at it.
+    // TODO(supabase): upload to the covers bucket (#36) and show upload errors.
+    private func saveCover(_ data: Data) {
+        guard let jpeg = ImageCompressor.jpeg(from: data),
+              let url = try? imageStorage.save(jpeg, fileExtension: "jpg")
+        else { showingCoverError = true; return }
         store.setCustomCover(url, for: bookId)
     }
 
