@@ -461,6 +461,23 @@ final class LibraryStore {
         return Self.isSearching(query) || filter != .all ? all.filter { !$0.books.isEmpty } : all
     }
 
+    // MARK: Jump to shelf
+
+    struct ShelfJump: Equatable, Identifiable {
+        let id: String
+        let name: String
+        let count: Int
+    }
+
+    /// Every regular shelf with its book count, in bookcase order; empty when there's one shelf or none.
+    var shelfJumps: [ShelfJump] {
+        guard bookshelf.shelves.count > 1 else { return [] }
+        let bookIds = Set(books.map(\.id))
+        return bookshelf.shelves.map { shelf in
+            ShelfJump(id: shelf.id, name: shelf.name, count: shelf.bookIds.count { bookIds.contains($0) })
+        }
+    }
+
     // MARK: Filter menu
 
     /// Every tag on a book in the library, once each ignoring case (first spelling wins), sorted.

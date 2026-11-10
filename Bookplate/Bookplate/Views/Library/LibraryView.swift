@@ -182,6 +182,7 @@ struct LibraryView: View {
                         sort: sort,
                         onSort: { new in withAnimation(.snappy) { shelfSorts[shelf.id] = new == .custom ? nil : new } }
                     )
+                    .id(shelf.id)
                 }
             }
             .padding(.vertical, 12)
@@ -298,16 +299,50 @@ struct LibraryView: View {
         }
     }
 
+    /// Jumps to a shelf. Hidden with one shelf or none.
+    @ViewBuilder
+    private var shelvesMenu: some View {
+        let jumps = store.shelfJumps
+        if !jumps.isEmpty {
+            Text("·").foregroundStyle(Theme.mutedText)
+            Menu {
+                ForEach(jumps) { jump in
+                    Button("\(jump.name) (\(jump.count))") { jumpToShelf(jump.id) }
+                }
+            } label: {
+                HStack(spacing: 2) {
+                    Text("Shelves")
+                    Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                }
+                .fontWeight(.semibold)
+                .foregroundStyle(Theme.brown)
+            }
+            .accessibilityLabel("Jump to shelf")
+        }
+    }
+
+    private func jumpToShelf(_ shelfId: String) {
+        // The shelf may be hidden by search or the filter; show everything first.
+        let wasNarrowed = isNarrowed
+        query = ""
+        filter = .all
+        endEditing()
+        Task { @MainActor in
+            if wasNarrowed { await Task.yield() }
+            withAnimation(.snappy) { libraryScroll.scrollTo(id: shelfId, anchor: .top) }
+        }
+    }
+
     private var zoomControl: some View {
         HStack(spacing: 0) {
             Button { withAnimation(.snappy) { zoom = zoom.zoomedOut() } } label: {
-                Image(systemName: "minus").frame(width: 32, height: 40)
+                Image(systemName: "minus.magnifyingglass").frame(width: 32, height: 40)
                     .opacity(zoom.canZoomOut ? 1 : 0.3)
             }
             .disabled(!zoom.canZoomOut)
             .accessibilityLabel("Zoom out")
             Button { withAnimation(.snappy) { zoom = zoom.zoomedIn() } } label: {
-                Image(systemName: "plus").frame(width: 32, height: 40)
+                Image(systemName: "plus.magnifyingglass").frame(width: 32, height: 40)
                     .opacity(zoom.canZoomIn ? 1 : 0.3)
             }
             .disabled(!zoom.canZoomIn)
@@ -321,15 +356,25 @@ struct LibraryView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Bookplate")
-                    .font(Theme.title(32))
-                    .foregroundStyle(Theme.brown)
+        VStack(alignment: .leading, spacing: 2) {
+            headerTopRow
+            // Its own row, so the buttons above don't squeeze it.
+            HStack(spacing: 4) {
                 Text("\(store.bookshelf.name) · \(store.books.count) \(store.books.count == 1 ? "book" : "books")")
-                    .font(.footnote)
                     .foregroundStyle(Theme.mutedText)
+                if !store.isLibraryEmpty { shelvesMenu }
             }
+            .font(.footnote)
+            .lineLimit(1)
+        }
+        .padding(.top, 8)
+    }
+
+    private var headerTopRow: some View {
+        HStack(alignment: .center) {
+            Text("Bookplate")
+                .font(Theme.title(32))
+                .foregroundStyle(Theme.brown)
             Spacer()
             if !store.isLibraryEmpty { zoomControl }
             Menu {
@@ -351,7 +396,6 @@ struct LibraryView: View {
             }
             .accessibilityLabel("Add book")
         }
-        .padding(.top, 8)
     }
 }
 
