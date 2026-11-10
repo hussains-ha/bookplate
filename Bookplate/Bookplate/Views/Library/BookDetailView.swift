@@ -82,7 +82,6 @@ struct BookDetailView: View {
             VStack(spacing: 8) {
                 BookCoverView(book: book, meta: meta)
                     .frame(width: 104)
-                    .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
                 PhotosPicker(selection: $coverItem, matching: .images) {
                     Text("Change Cover").font(.caption.weight(.semibold))
                 }

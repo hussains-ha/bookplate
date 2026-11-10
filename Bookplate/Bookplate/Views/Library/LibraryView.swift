@@ -405,7 +405,7 @@ private struct FloatingSpine: View {
 
     var body: some View {
         if let picked = drag.picked {
-            let height = BookAppearance(bookId: picked.book.id).spineHeight * scale
+            let height = BookAppearance(book: picked.book).spineHeight * scale
             SpineView(book: picked.book)
                 .scaleEffect(1.08, anchor: .bottom)
                 .shadow(color: .black.opacity(0.5), radius: 6, y: 3)

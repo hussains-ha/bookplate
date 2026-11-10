@@ -18,12 +18,12 @@ struct SpineView: View {
 
     @Environment(\.bookcaseScale) private var scale
 
-    private var appearance: BookAppearance { BookAppearance(bookId: book.id) }
+    private var appearance: BookAppearance { BookAppearance(book: book) }
     private var status: String? { store?.meta(for: book.id)?.status }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(book.title)
+            Text(BookAppearance.displayTitle(book.title))
                 .font(.system(size: BookcaseZoom.titleSize(at: scale), weight: .semibold, design: .serif))
             if let author = book.authors.first, !author.isEmpty, let size = BookcaseZoom.authorSize(at: scale) {
                 Text(author)
@@ -46,7 +46,7 @@ struct SpineView: View {
                     .padding(.trailing, 3 * scale)
             }
         }
-        .background(appearance.color)
+        .background(appearance.gradient)
         .clipShape(RoundedRectangle(cornerRadius: 2))
         .accessibilityElement()
         .accessibilityLabel(accessibilityText)

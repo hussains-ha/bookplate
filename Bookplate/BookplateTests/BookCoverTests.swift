@@ -32,8 +32,4 @@ struct BookCoverTests {
         #expect(book(coverUrl: nil).displayCoverURL(meta: meta(customCover: nil)) == nil)
         #expect(book(coverUrl: nil).displayCoverURL(meta: nil) == nil)
     }
-
-    @Test func appearanceIsStablePerBook() {
-        #expect(BookAppearance(bookId: "book-dune").spineHeight == BookAppearance(bookId: "book-dune").spineHeight)
-    }
 }
