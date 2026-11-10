@@ -112,7 +112,13 @@ struct ShelfView: View {
         if let draft = draftName {
             TextField("Shelf name", text: Binding(
                 get: { draft },
-                set: { draftName = String($0.prefix(LibraryStore.maxShelfNameLength)); renameProblem = nil }
+                set: { newValue in
+                    let capped = String(newValue.prefix(LibraryStore.maxShelfNameLength))
+                    // The field re-sends its text when focus comes back; only a real edit clears the error.
+                    guard capped != draftName else { return }
+                    draftName = capped
+                    renameProblem = nil
+                }
             ))
             .focused($isNameFocused)
             .submitLabel(.done)

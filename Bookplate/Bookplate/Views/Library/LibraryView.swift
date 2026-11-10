@@ -39,6 +39,9 @@ struct LibraryView: View {
             }
             .background(Theme.wood, in: RoundedRectangle(cornerRadius: 6))
         }
+        .contentShape(Rectangle())
+        // Tapping a blank spot ends editing (e.g. cancels a shelf rename). Spines and plates handle their own taps first.
+        .onTapGesture(perform: endEditing)
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.background.ignoresSafeArea())
@@ -85,6 +88,14 @@ struct LibraryView: View {
         }
         .padding(.top, 8)
     }
+}
+
+/// Ends text editing anywhere on screen.
+@MainActor
+func endEditing() {
+    #if os(iOS)
+    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    #endif
 }
 
 #Preview {
