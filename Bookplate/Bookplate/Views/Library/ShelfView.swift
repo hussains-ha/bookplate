@@ -15,6 +15,8 @@ struct ShelfView: View {
     /// Nil when the shelf is already at the top (or bottom).
     var onMoveUp: (() -> Void)?
     var onMoveDown: (() -> Void)?
+    /// Nil for the last shelf, which can't be deleted.
+    var onDelete: (() -> Void)?
 
     private static let spacing: CGFloat = 2
     private static let holdDuration = 0.25
@@ -180,6 +182,10 @@ struct ShelfView: View {
                 Button(shelf.isLocked ? "Unlock Shelf" : "Lock Shelf",
                        systemImage: shelf.isLocked ? "lock.open" : "lock",
                        action: onToggleLock)
+                if let onDelete {
+                    Divider()
+                    Button("Delete Shelf", systemImage: "trash", role: .destructive, action: onDelete)
+                }
             }
         }
     }
