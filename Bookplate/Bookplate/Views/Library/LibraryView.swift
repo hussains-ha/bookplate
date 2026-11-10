@@ -141,6 +141,21 @@ struct LibraryView: View {
     private var bookcase: some View {
         ScrollView {
             VStack(spacing: 14) {
+                // Smart shelves would only repeat search and filter results, so they show in the full view only.
+                if !isNarrowed {
+                    ForEach(store.smartShelves(), id: \.shelf.id) { visible in
+                        let sort = shelfSorts[visible.shelf.id] ?? .custom
+                        ShelfView(
+                            shelf: visible.shelf,
+                            books: sort.apply(to: visible.books) { store.meta(for: $0.id)?.rating },
+                            isReorderEnabled: false,
+                            onSelect: { selectedBook = $0 },
+                            sort: sort,
+                            onSort: { new in withAnimation(.snappy) { shelfSorts[visible.shelf.id] = new == .custom ? nil : new } },
+                            isEditable: false
+                        )
+                    }
+                }
                 ForEach(visibleShelves, id: \.shelf.id) { visible in
                     let shelf = visible.shelf
                     // The shelf's place in the whole bookcase, not in the (possibly filtered) list on screen.

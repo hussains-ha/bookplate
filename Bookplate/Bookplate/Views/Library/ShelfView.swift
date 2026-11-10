@@ -22,6 +22,8 @@ struct ShelfView: View {
     /// How the books are shown; anything but Custom is display only (pass `isReorderEnabled: false`).
     var sort: ShelfSort = .custom
     var onSort: (ShelfSort) -> Void = { _ in }
+    /// False for smart shelves: no rename, move, lock or delete (pass `isReorderEnabled: false` too).
+    var isEditable = true
 
     @Environment(ShelfDrag.self) private var drag
 
@@ -214,6 +216,18 @@ struct ShelfView: View {
             .background(Theme.label, in: RoundedRectangle(cornerRadius: 1))
             .accessibilityLabel("Shelf name")
             .accessibilityAction(.escape, cancelRename)
+        } else if !isEditable {
+            HStack(spacing: 3) {
+                Image(systemName: "sparkles").accessibilityHidden(true)
+                Text(shelf.name)
+            }
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(Theme.brown)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(Theme.label.opacity(0.8), in: RoundedRectangle(cornerRadius: 1))
+            .accessibilityElement(children: .combine)
+            .accessibilityHint("Smart shelf. Fills itself from each book's status and rating.")
         } else {
             HStack(spacing: 3) {
                 if shelf.isLocked {
