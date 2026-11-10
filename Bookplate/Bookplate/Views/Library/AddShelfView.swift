@@ -31,6 +31,8 @@ struct AddShelfView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
             .navigationTitle("New Shelf")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

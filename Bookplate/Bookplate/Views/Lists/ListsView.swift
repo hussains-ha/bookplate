@@ -162,14 +162,15 @@ private struct ListCard: View {
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
                         .background(Theme.background, in: Capsule())
-                        .accessibilityLabel("\(item.list.bookIds.count) books")
+                        .accessibilityLabel(bookCount)
                     Spacer(minLength: 0)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(!canCollapse)
-            .accessibilityLabel("\(item.list.name), \(item.list.bookIds.count) books")
+            // Not `.disabled`: that greys the whole header out. Toggling is just ignored while searching.
+            .allowsHitTesting(canCollapse)
+            .accessibilityLabel("\(item.list.name), \(bookCount)")
             .accessibilityHint(canCollapse ? (isExpanded ? "Collapses the list" : "Expands the list") : "")
 
             Menu {
@@ -185,6 +186,10 @@ private struct ListCard: View {
         .padding(.leading, 14)
         .padding(.trailing, 6)
         .padding(.vertical, 8)
+    }
+
+    private var bookCount: String {
+        item.list.bookIds.count == 1 ? "1 book" : "\(item.list.bookIds.count) books"
     }
 
     private func row(_ book: Book) -> some View {

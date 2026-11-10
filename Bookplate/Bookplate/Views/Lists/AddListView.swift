@@ -31,6 +31,8 @@ struct AddListView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
             .navigationTitle("New List")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
