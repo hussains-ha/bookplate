@@ -187,8 +187,6 @@ struct LibraryView: View {
             }
             .padding(.vertical, 12)
         }
-        // Room to scroll the last shelf clear of the floating tab bar and the undo toast.
-        .contentMargins(.bottom, 64, for: .scrollContent)
         .scrollPosition($libraryScroll)
         .scrollDisabled(drag.picked != nil)
         .onScrollGeometryChange(for: LibraryScrollMetrics.self) { geometry in
