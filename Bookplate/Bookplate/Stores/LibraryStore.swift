@@ -10,6 +10,8 @@ final class LibraryStore {
     private(set) var metas: [BookMeta]
     private(set) var bookshelf: Bookshelf
     private(set) var lists: [BookList] = []
+    /// Recent deletions, newest last, so they can be undone.
+    private(set) var undoStack: [Deletion] = []
 
     static let recentlyAddedName = "Recently Added"
 
@@ -168,12 +170,14 @@ final class LibraryStore {
         guard case .allowed(let target) = shelfDeletion(shelfId),
               let index = bookshelf.shelves.firstIndex(where: { $0.id == shelfId }) else { return false }
         let shelf = bookshelf.shelves[index]
+        var moving: [String] = []
         if let target, let targetIndex = bookshelf.shelves.firstIndex(where: { $0.id == target.id }) {
-            let moving = shelf.bookIds.filter { !bookshelf.shelves[targetIndex].bookIds.contains($0) }
+            moving = shelf.bookIds.filter { !bookshelf.shelves[targetIndex].bookIds.contains($0) }
             bookshelf.shelves[targetIndex].bookIds += moving
             // Saved before the delete, so the books are never on no shelf at all.
             saveShelfBooks(at: targetIndex)
         }
+        remember(.shelf(shelf, index: index, movedTo: target?.id, movedBookIds: moving))
         bookshelf.shelves.remove(at: index)
         save(.deleteShelf(id: shelfId))
         for i in index..<bookshelf.shelves.count { saveShelf(at: i) }
@@ -283,7 +287,12 @@ final class LibraryStore {
     /// Removes a book everywhere: its details, its place on every shelf and every list.
     // TODO(supabase): also delete the book's uploaded images (custom cover and note photos) from storage.
     func removeBook(_ bookId: String) {
-        guard book(withId: bookId) != nil else { return }
+        guard let book = book(withId: bookId) else { return }
+        remember(.book(
+            book, meta: meta(for: bookId),
+            shelves: bookshelf.shelves.compactMap { shelf in shelf.bookIds.firstIndex(of: bookId).map { Placement(id: shelf.id, index: $0) } },
+            lists: lists.compactMap { list in list.bookIds.firstIndex(of: bookId).map { Placement(id: list.id, index: $0) } }
+        ))
         books.removeAll { $0.id == bookId }
         metas.removeAll { $0.bookId == bookId }
         for index in bookshelf.shelves.indices {
@@ -294,6 +303,111 @@ final class LibraryStore {
         }
         // The database removes the book's details and shelf and list entries with it.
         save(.deleteBook(id: bookId))
+        saveLocalFiles()
+    }
+
+    // MARK: Undo
+
+    static let maxUndo = 10
+
+    /// Where an item sat in a shelf or list.
+    struct Placement: Equatable {
+        let id: String
+        let index: Int
+    }
+
+    struct Deletion: Identifiable, Equatable {
+        enum Kind: Equatable {
+            /// `movedBookIds` are the books that went to `movedTo` and weren't already there.
+            case shelf(Shelf, index: Int, movedTo: String?, movedBookIds: [String])
+            case book(Book, meta: BookMeta?, shelves: [Placement], lists: [Placement])
+        }
+
+        let id = UUID()
+        let kind: Kind
+        var date = Date()
+
+        var name: String {
+            switch kind {
+            case .shelf(let shelf, _, _, _): shelf.name
+            case .book(let book, _, _, _): book.title
+            }
+        }
+    }
+
+    private func remember(_ kind: Deletion.Kind) {
+        undoStack.append(Deletion(kind: kind))
+        if undoStack.count > Self.maxUndo { undoStack.removeFirst(undoStack.count - Self.maxUndo) }
+    }
+
+    /// Restores the most recent deletion. Returns what was restored.
+    @discardableResult
+    func undoLastDeletion() -> Deletion? {
+        guard let deletion = undoStack.popLast() else { return nil }
+        switch deletion.kind {
+        case .shelf(let shelf, let index, let movedTo, let movedBookIds):
+            restoreShelf(shelf, at: index, movedTo: movedTo, movedBookIds: movedBookIds)
+        case .book(let book, let meta, let shelves, let lists):
+            restoreBook(book, meta: meta, shelves: shelves, lists: lists)
+        }
+        return deletion
+    }
+
+    private func restoreShelf(_ shelf: Shelf, at index: Int, movedTo: String?, movedBookIds: [String]) {
+        guard !bookshelf.shelves.contains(where: { $0.id == shelf.id }) else { return }
+        // Take back the books that were moved off it, then put it back where it was.
+        if let targetIndex = bookshelf.shelves.firstIndex(where: { $0.id == movedTo }) {
+            bookshelf.shelves[targetIndex].bookIds.removeAll { movedBookIds.contains($0) }
+            saveShelfBooks(at: targetIndex)
+        }
+        var restored = shelf
+        restored.name = availableShelfName(shelf.name)
+        restored.bookIds = shelf.bookIds.filter { book(withId: $0) != nil }
+        let index = min(index, bookshelf.shelves.count)
+        bookshelf.shelves.insert(restored, at: index)
+        for i in index..<bookshelf.shelves.count { saveShelf(at: i) }
+        saveShelfBooks(at: index)
+    }
+
+    /// `name`, or "name 2", "name 3"… if another shelf took the name since. Stays within the length cap.
+    private func availableShelfName(_ name: String) -> String {
+        guard shelfNameProblem(name) == .duplicate else { return name }
+        for n in 2... {
+            let suffix = " \(n)"
+            let candidate = String(name.prefix(Self.maxShelfNameLength - suffix.count)) + suffix
+            if shelfNameProblem(candidate) == nil { return candidate }
+        }
+        return name
+    }
+
+    private func restoreBook(_ book: Book, meta: BookMeta?, shelves: [Placement], lists placements: [Placement]) {
+        guard self.book(withId: book.id) == nil else { return }
+        books.append(book)
+        save(.saveBook(book))
+        // Always save details with the book: a restore is then recognized as added on this device after a relaunch.
+        let meta = meta ?? BookMeta(bookId: book.id, status: BookMeta.Status.want, rating: nil, notes: nil,
+                                    notePhotos: [], tags: [], customCover: nil,
+                                    addedDate: Date(), startedDate: nil, finishedDate: nil)
+        metas.append(meta)
+        save(.saveMeta(meta))
+        var placed = false
+        for placement in shelves {
+            guard let i = bookshelf.shelves.firstIndex(where: { $0.id == placement.id }) else { continue }
+            bookshelf.shelves[i].bookIds.insert(book.id, at: min(placement.index, bookshelf.shelves[i].bookIds.count))
+            saveShelfBooks(at: i)
+            placed = true
+        }
+        // Its shelves are gone: put it on the default shelf (or, if every shelf is locked, the first) so it's still visible.
+        if !placed, !shelves.isEmpty,
+           let i = bookshelf.shelves.firstIndex(where: { $0.id == defaultShelfId }) ?? bookshelf.shelves.indices.first {
+            bookshelf.shelves[i].bookIds.insert(book.id, at: 0)
+            saveShelfBooks(at: i)
+        }
+        for placement in placements {
+            guard let i = lists.firstIndex(where: { $0.id == placement.id }) else { continue }
+            lists[i].bookIds.insert(book.id, at: min(placement.index, lists[i].bookIds.count))
+            saveListBooks(at: i)
+        }
         saveLocalFiles()
     }
 

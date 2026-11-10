@@ -46,5 +46,17 @@
     "addedDate": "2024-11-10T00:00:00Z",
     "startedDate": "2024-11-12T00:00:00Z",
     "finishedDate": "2024-12-20T00:00:00Z"
+  },
+  {
+    "bookId": "book-good-omens",
+    "status": "want",
+    "rating": null,
+    "notes": null,
+    "notePhotos": [],
+    "tags": [],
+    "customCover": null,
+    "addedDate": "2025-03-01T00:00:00Z",
+    "startedDate": null,
+    "finishedDate": null
   }
 ]

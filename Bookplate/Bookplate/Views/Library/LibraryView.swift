@@ -47,6 +47,9 @@ struct LibraryView: View {
             }
             .background(Theme.wood, in: RoundedRectangle(cornerRadius: 6))
         }
+        .overlay(alignment: .bottom) {
+            UndoToast().padding(.bottom, 8)
+        }
         // Tapping a blank spot ends editing (e.g. cancels a shelf rename). On a background layer, so taps
         // inside text fields, spines and plates never reach it.
         .background {
