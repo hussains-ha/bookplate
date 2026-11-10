@@ -238,7 +238,7 @@ struct LibraryStoreSyncTests {
         #expect(repo.applied.count == saved)
     }
 
-    @Test func coversAndNotePhotosStayLocal() async throws {
+    @Test func coverIsUploadedAndNotePhotosStayLocal() async throws {
         let repo = InMemoryLibraryRepository()
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -251,11 +251,12 @@ struct LibraryStoreSyncTests {
         await sync.waitUntilIdle()
         let saved = repo.applied.count
 
+        try Data("jpeg".utf8).write(to: folder.appendingPathComponent("cover.jpg"))
         store.setCustomCover(folder.appendingPathComponent("cover.jpg"), for: book.id)
         store.addNotePhoto(folder.appendingPathComponent("note.jpg"), to: book.id)
         await sync.waitUntilIdle()
-        #expect(repo.applied.count == saved)   // nothing sent to the server
-        #expect(repo.snapshot.metas.first?.customCover == nil)
+        // Only the cover goes to the server; note photos stay on the device.
+        #expect(Array(repo.applied.dropFirst(saved)) == [.uploadCover(bookId: book.id, fileName: "cover.jpg")])
 
         let reloaded = LibraryStore.loaded(try await repo.loadLibrary(), userId: UUID(), sync: sync,
                                            localFiles: files, coverLookup: NoCoverLookup())

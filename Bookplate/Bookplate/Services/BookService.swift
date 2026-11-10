@@ -135,6 +135,10 @@ struct BookService: BookRepository {
         case let error as PostgrestError where error.code?.hasPrefix("22") == true || error.code?.hasPrefix("23") == true:
             .rejected(error.message)
         case let error as PostgrestError: .server(error.message)
+        // Storage (custom covers): an expired session, or a request that won't succeed on retry.
+        case let error as StorageError where error.statusCode == "401": .notSignedIn
+        case let error as StorageError where error.statusCode?.hasPrefix("4") == true: .rejected(error.message)
+        case let error as StorageError: .server(error.message)
         default: .server(error.localizedDescription)
         }
     }

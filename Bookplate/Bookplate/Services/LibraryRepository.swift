@@ -16,7 +16,8 @@ enum LibraryChange: Codable, Equatable {
     case saveBook(Book)
     /// Also removes the book's details and its shelf and list entries.
     case deleteBook(id: String)
-    /// Custom cover and note photos are not saved; they stay on the device until #36.
+    /// Custom cover and note photos are not saved here: covers use `uploadCover`/`deleteCover`,
+    /// note photos stay on the device.
     case saveMeta(BookMeta)
     /// Name, position and lock. The shelf's books are saved with `setShelfBooks`.
     case saveShelf(Shelf, position: Int)
@@ -25,6 +26,11 @@ enum LibraryChange: Codable, Equatable {
     case setShelfBooks(shelfId: String, bookIds: [String])
     case saveList(BookList, position: Int)
     case setListBooks(listId: String, bookIds: [String])
+    /// Uploads the custom cover saved on this device as `fileName` (in the images folder) and records it.
+    /// If the file is gone (replaced since), there's nothing to upload and the change is skipped.
+    case uploadCover(bookId: String, fileName: String)
+    /// Deletes the book's stored custom cover.
+    case deleteCover(bookId: String)
 }
 
 /// Loads and saves the signed-in user's library.
@@ -48,9 +54,12 @@ struct BookMetaRow: Codable, Equatable {
     var addedAt: Date
     var startedAt: Date?
     var finishedAt: Date?
+    /// Read only: set by `uploadCover`/`deleteCover`, never by a details save.
+    var customCover: String?
 
     enum CodingKeys: String, CodingKey {
         case status, rating, notes, tags
+        case customCover = "custom_cover"
         case bookId = "book_id"
         case addedAt = "added_at"
         case startedAt = "started_at"
@@ -84,7 +93,8 @@ struct BookMetaRow: Codable, Equatable {
 
     var meta: BookMeta {
         BookMeta(bookId: bookId, status: status, rating: rating, notes: notes, notePhotos: [], tags: tags,
-                 customCover: nil, addedDate: addedAt, startedDate: startedAt, finishedDate: finishedAt)
+                 customCover: customCover.flatMap(CustomCoverPath.url(columnValue:)),
+                 addedDate: addedAt, startedDate: startedAt, finishedDate: finishedAt)
     }
 }
 
@@ -171,6 +181,11 @@ struct SupabaseLibraryRepository: LibraryRepository {
     /// account is signed in, so one user's queued changes never land in another's library.
     let userId: UUID
     var client: SupabaseClient = SupabaseService.client
+    var covers: CoverStorage?
+    /// Where `uploadCover` finds the picked photo.
+    var imagesFolder: () throws -> URL = { try LocalImageStorage.folder() }
+
+    private var coverStorage: CoverStorage { covers ?? SupabaseCoverStorage(client: client) }
 
     func loadLibrary() async throws(BookServiceError) -> LibrarySnapshot {
         try await run {
@@ -193,6 +208,19 @@ struct SupabaseLibraryRepository: LibraryRepository {
                     .upsert(BookRow(book), onConflict: "user_id,id", returning: .minimal).execute()
             case .deleteBook(let id):
                 try await client.from("books").delete().eq("id", value: id).execute()
+                // Best effort: a leftover cover file is harmless and unreachable by others.
+                try? await coverStorage.remove(path: CustomCoverPath.objectPath(userId: userId, bookId: id))
+            case .uploadCover(let bookId, let fileName):
+                guard let data = try? Data(contentsOf: imagesFolder().appendingPathComponent(fileName)) else { return }
+                try await coverStorage.upload(data, path: CustomCoverPath.objectPath(userId: userId, bookId: bookId))
+                let value = CustomCoverPath.columnValue(userId: userId, bookId: bookId,
+                                                        version: CustomCoverPath.version(fileName: fileName))
+                try await client.from("book_meta").update(CustomCoverUpdate(customCover: value))
+                    .eq("book_id", value: bookId).execute()
+            case .deleteCover(let bookId):
+                try await coverStorage.remove(path: CustomCoverPath.objectPath(userId: userId, bookId: bookId))
+                try await client.from("book_meta").update(CustomCoverUpdate(customCover: nil))
+                    .eq("book_id", value: bookId).execute()
             case .saveMeta(let meta):
                 try await client.from("book_meta")
                     .upsert(BookMetaRow(meta), onConflict: "user_id,book_id", returning: .minimal).execute()
@@ -225,6 +253,18 @@ struct SupabaseLibraryRepository: LibraryRepository {
         text.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "%", with: "\\%")
             .replacingOccurrences(of: "_", with: "\\_")
+    }
+
+    /// Writes `custom_cover` even when nil, so clearing it reaches the server.
+    private struct CustomCoverUpdate: Encodable {
+        let customCover: String?
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(customCover, forKey: .customCover)
+        }
+
+        enum CodingKeys: String, CodingKey { case customCover = "custom_cover" }
     }
 
     private struct SetBooksParams: Encodable {
@@ -275,9 +315,16 @@ extension LibrarySnapshot {
         case .saveMeta(let meta):
             try requireBook(meta.bookId)
             var saved = meta
-            saved.customCover = nil
+            // Like the database: a details save doesn't touch the stored cover.
+            saved.customCover = metas.first { $0.bookId == meta.bookId }?.customCover
             saved.notePhotos = []
             Self.upsert(saved, into: &metas, id: \.bookId)
+        case .uploadCover(let bookId, _):
+            // The stored path depends on the user; the device shows its local copy meanwhile (`LocalBookFiles`).
+            try requireBook(bookId)
+        case .deleteCover(let bookId):
+            try requireBook(bookId)
+            if let i = metas.firstIndex(where: { $0.bookId == bookId }) { metas[i].customCover = nil }
         case .saveShelf(let shelf, let position):
             let existing = shelves.first { $0.id == shelf.id }?.bookIds ?? []
             shelves.removeAll { $0.id == shelf.id }
@@ -322,6 +369,9 @@ extension LibrarySnapshot {
                 if !missing.contains(where: { $0.id == book.id }) { missing.append(book) }
             case .saveMeta(let meta) where !known.contains(meta.bookId) && !addedHere.contains(meta.bookId):
                 continue
+            case .uploadCover(let bookId, _) where !known.contains(bookId) && !addedHere.contains(bookId),
+                 .deleteCover(let bookId) where !known.contains(bookId) && !addedHere.contains(bookId):
+                continue
             default:
                 break
             }
@@ -364,8 +414,23 @@ final class InMemoryLibraryRepository: LibraryRepository {
 
     func loadLibrary() async throws(BookServiceError) -> LibrarySnapshot { snapshot }
 
+    /// When set, cover changes go through it, like the real repository's storage bucket.
+    var covers: CoverStorage?
+
     func apply(_ change: LibraryChange) async throws(BookServiceError) {
         applied.append(change)
+        if let covers {
+            do {
+                switch change {
+                case .uploadCover(let bookId, let fileName): try await covers.upload(Data(fileName.utf8), path: bookId)
+                case .deleteCover(let bookId): try await covers.remove(path: bookId)
+                case .deleteBook(let bookId): try? await covers.remove(path: bookId)
+                default: break
+                }
+            } catch {
+                throw BookService.failure(from: error)
+            }
+        }
         try snapshot.apply(change)
     }
 

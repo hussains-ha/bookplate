@@ -293,12 +293,19 @@ final class LibraryStore {
     }
 
     /// Sets the user's own cover for a book, or nil to go back to the official or generated cover.
+    /// A local photo shows at once and is uploaded in the background (retried until it's saved).
     func setCustomCover(_ url: URL?, for bookId: String) {
+        guard let before = meta(for: bookId), before.customCover != url else { return }
         updateMeta(bookId, local: true) { $0.customCover = url }
+        if let url {
+            if url.isFileURL { save(.uploadCover(bookId: bookId, fileName: url.lastPathComponent)) }
+        } else {
+            save(.deleteCover(bookId: bookId))
+        }
     }
 
     /// Removes a book everywhere: its details, its place on every shelf and every list.
-    // TODO(supabase): also delete the book's uploaded images (custom cover and note photos) from storage.
+    /// The server also deletes its stored custom cover; the local files stay so undo can bring them back.
     func removeBook(_ bookId: String) {
         guard let book = book(withId: bookId) else { return }
         remember(.book(
@@ -401,8 +408,13 @@ final class LibraryStore {
         let meta = meta ?? BookMeta(bookId: book.id, status: BookMeta.Status.want, rating: nil, notes: nil,
                                     notePhotos: [], tags: [], customCover: nil,
                                     addedDate: Date(), startedDate: nil, finishedDate: nil)
-        metas.append(meta)
-        save(.saveMeta(meta))
+        var restored = meta
+        // The stored cover was deleted with the book: re-upload a local copy, or drop a cover that was only online.
+        if let cover = restored.customCover, !cover.isFileURL { restored.customCover = nil }
+        metas.append(restored)
+        save(.saveMeta(restored))
+        if let cover = restored.customCover { save(.uploadCover(bookId: book.id, fileName: cover.lastPathComponent)) }
+        saveLocalFiles()
         var placed = false
         for placement in shelves {
             guard let i = bookshelf.shelves.firstIndex(where: { $0.id == placement.id }) else { continue }
