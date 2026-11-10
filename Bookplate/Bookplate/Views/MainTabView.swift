@@ -57,18 +57,6 @@ private struct SyncBanner: View {
     }
 }
 
-private struct PlaceholderTab: View {
-    let title: String
-
-    var body: some View {
-        Text(title)
-            .font(Theme.title(28))
-            .foregroundStyle(Theme.brown)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Theme.background.ignoresSafeArea())
-    }
-}
-
 #Preview {
     MainTabView()
         .environment(LibraryStore.sample())
