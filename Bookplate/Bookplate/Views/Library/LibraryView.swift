@@ -336,13 +336,13 @@ struct LibraryView: View {
     private var zoomControl: some View {
         HStack(spacing: 0) {
             Button { withAnimation(.snappy) { zoom = zoom.zoomedOut() } } label: {
-                Image(systemName: "minus").frame(width: 32, height: 40)
+                Image(systemName: "minus.magnifyingglass").frame(width: 32, height: 40)
                     .opacity(zoom.canZoomOut ? 1 : 0.3)
             }
             .disabled(!zoom.canZoomOut)
             .accessibilityLabel("Zoom out")
             Button { withAnimation(.snappy) { zoom = zoom.zoomedIn() } } label: {
-                Image(systemName: "plus").frame(width: 32, height: 40)
+                Image(systemName: "plus.magnifyingglass").frame(width: 32, height: 40)
                     .opacity(zoom.canZoomIn ? 1 : 0.3)
             }
             .disabled(!zoom.canZoomIn)
@@ -356,19 +356,25 @@ struct LibraryView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Bookplate")
-                    .font(Theme.title(32))
-                    .foregroundStyle(Theme.brown)
-                HStack(spacing: 4) {
-                    Text("\(store.bookshelf.name) · \(store.books.count) \(store.books.count == 1 ? "book" : "books")")
-                        .foregroundStyle(Theme.mutedText)
-                    if !store.isLibraryEmpty { shelvesMenu }
-                }
-                .font(.footnote)
-                .lineLimit(1)
+        VStack(alignment: .leading, spacing: 2) {
+            headerTopRow
+            // Its own row, so the buttons above don't squeeze it.
+            HStack(spacing: 4) {
+                Text("\(store.bookshelf.name) · \(store.books.count) \(store.books.count == 1 ? "book" : "books")")
+                    .foregroundStyle(Theme.mutedText)
+                if !store.isLibraryEmpty { shelvesMenu }
             }
+            .font(.footnote)
+            .lineLimit(1)
+        }
+        .padding(.top, 8)
+    }
+
+    private var headerTopRow: some View {
+        HStack(alignment: .center) {
+            Text("Bookplate")
+                .font(Theme.title(32))
+                .foregroundStyle(Theme.brown)
             Spacer()
             if !store.isLibraryEmpty { zoomControl }
             Menu {
@@ -390,7 +396,6 @@ struct LibraryView: View {
             }
             .accessibilityLabel("Add book")
         }
-        .padding(.top, 8)
     }
 }
 
