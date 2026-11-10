@@ -30,45 +30,21 @@ struct LibraryView: View {
         VStack(alignment: .leading, spacing: 10) {
             header
 
-            HStack {
-                Image(systemName: "magnifyingglass").foregroundStyle(Theme.mutedText)
-                TextField("Title or author", text: $query)
-            }
-            .authFieldStyle()
-
-            ScrollView {
-                VStack(spacing: 14) {
-                    ForEach(Array(store.bookshelf.shelves.enumerated()), id: \.element.id) { index, shelf in
-                        ShelfView(
-                            shelf: shelf,
-                            books: store.books(on: shelf, matching: query),
-                            isReorderEnabled: query.isEmpty,
-                            onToggleLock: { store.setLocked(!shelf.isLocked, onShelf: shelf.id) },
-                            onSelect: { selectedBook = $0 },
-                            onMove: { bookId, to in store.moveBook(bookId, onShelf: shelf.id, to: to) },
-                            onMoveToShelf: { bookId, targetId, to in
-                                store.moveBook(bookId, from: shelf.id, toShelf: targetId, at: to)
-                            },
-                            onRename: { store.renameShelf(shelf.id, to: $0) },
-                            onMoveUp: index > 0 ? { withAnimation(.snappy) { store.moveShelf(shelf.id, to: index - 1) } } : nil,
-                            onMoveDown: index < store.bookshelf.shelves.count - 1
-                                ? { withAnimation(.snappy) { store.moveShelf(shelf.id, to: index + 1) } } : nil,
-                            onDelete: store.bookshelf.shelves.count > 1 ? { shelfToDelete = PendingDeletion(shelf: shelf, deletion: store.shelfDeletion(shelf.id)) } : nil
-                        )
-                    }
+            if store.isLibraryEmpty {
+                emptyLibrary
+            } else {
+                HStack {
+                    Image(systemName: "magnifyingglass").foregroundStyle(Theme.mutedText)
+                    TextField("Title or author", text: $query)
                 }
-                .padding(.vertical, 12)
+                .authFieldStyle()
+
+                if LibraryStore.isSearching(query), visibleShelves.isEmpty {
+                    noMatches
+                } else {
+                    bookcase
+                }
             }
-            // Room to scroll the last shelf clear of the floating tab bar and the undo toast.
-            .contentMargins(.bottom, 64, for: .scrollContent)
-            .scrollPosition($libraryScroll)
-            .scrollDisabled(drag.picked != nil)
-            .onScrollGeometryChange(for: LibraryScrollMetrics.self) { geometry in
-                LibraryScrollMetrics(offsetY: geometry.contentOffset.y,
-                                     maxOffsetY: max(0, geometry.contentSize.height - geometry.visibleRect.height))
-            } action: { _, new in libraryMetrics = new }
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(ShelfDrag.space)) } action: { drag.viewport = $0 }
-            .background(Theme.wood, in: RoundedRectangle(cornerRadius: 6))
         }
         .coordinateSpace(.named(ShelfDrag.space))
         .overlay(alignment: .topLeading) { FloatingSpine() }
@@ -107,6 +83,87 @@ struct LibraryView: View {
         .sheet(item: $selectedBook) { book in
             BookDetailView(bookId: book.id)
         }
+    }
+
+    private var visibleShelves: [LibraryStore.VisibleShelf] { store.visibleShelves(matching: query) }
+
+    private var bookcase: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                ForEach(visibleShelves, id: \.shelf.id) { visible in
+                    let shelf = visible.shelf
+                    // The shelf's place in the whole bookcase, not in the (possibly filtered) list on screen.
+                    let index = store.bookshelf.shelves.firstIndex { $0.id == shelf.id } ?? 0
+                    ShelfView(
+                        shelf: shelf,
+                        books: visible.books,
+                        isReorderEnabled: !LibraryStore.isSearching(query),
+                        onToggleLock: { store.setLocked(!shelf.isLocked, onShelf: shelf.id) },
+                        onSelect: { selectedBook = $0 },
+                        onMove: { bookId, to in store.moveBook(bookId, onShelf: shelf.id, to: to) },
+                        onMoveToShelf: { bookId, targetId, to in
+                            store.moveBook(bookId, from: shelf.id, toShelf: targetId, at: to)
+                        },
+                        onRename: { store.renameShelf(shelf.id, to: $0) },
+                        onMoveUp: index > 0 ? { withAnimation(.snappy) { store.moveShelf(shelf.id, to: index - 1) } } : nil,
+                        onMoveDown: index < store.bookshelf.shelves.count - 1
+                            ? { withAnimation(.snappy) { store.moveShelf(shelf.id, to: index + 1) } } : nil,
+                        onDelete: store.bookshelf.shelves.count > 1 ? { shelfToDelete = PendingDeletion(shelf: shelf, deletion: store.shelfDeletion(shelf.id)) } : nil
+                    )
+                }
+            }
+            .padding(.vertical, 12)
+        }
+        // Room to scroll the last shelf clear of the floating tab bar and the undo toast.
+        .contentMargins(.bottom, 64, for: .scrollContent)
+        .scrollPosition($libraryScroll)
+        .scrollDisabled(drag.picked != nil)
+        .onScrollGeometryChange(for: LibraryScrollMetrics.self) { geometry in
+            LibraryScrollMetrics(offsetY: geometry.contentOffset.y,
+                                 maxOffsetY: max(0, geometry.contentSize.height - geometry.visibleRect.height))
+        } action: { _, new in libraryMetrics = new }
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(ShelfDrag.space)) } action: { drag.viewport = $0 }
+        .background(Theme.wood, in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private var emptyLibrary: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "books.vertical")
+                .font(.system(size: 44))
+                .foregroundStyle(Theme.brown.opacity(0.6))
+            Text("Your library is empty")
+                .font(Theme.title(22))
+                .foregroundStyle(Theme.brown)
+            Text("Add your first book to start filling your shelves.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.mutedText)
+                .multilineTextAlignment(.center)
+            Button { showingAddBook = true } label: {
+                Label("Add a book", systemImage: "plus")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(Theme.brown, in: Capsule())
+            }
+            .padding(.top, 4)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var noMatches: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 36))
+                .foregroundStyle(Theme.brown.opacity(0.5))
+            Text("No matches for \u{2018}\(query.trimmingCharacters(in: .whitespacesAndNewlines))\u{2019}.")
+                .font(.headline)
+                .foregroundStyle(Theme.brown)
+                .multilineTextAlignment(.center)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: Dragging between shelves
@@ -222,4 +279,12 @@ func endEditing() {
 #Preview {
     LibraryView()
         .environment(LibraryStore.sample())
+}
+
+#Preview("Empty library") {
+    LibraryView()
+        .environment(LibraryStore(
+            books: [], metas: [],
+            bookshelf: Bookshelf(id: "preview", name: "My Library",
+                                 shelves: [Shelf(id: "s", name: "To Read", bookIds: [])], appearance: .classic)))
 }

@@ -82,6 +82,15 @@ struct ShelfView: View {
                 .frame(minHeight: 112, alignment: .bottom)
                 .overlay(alignment: .bottomLeading) { incomingPlaceholder }
             }
+            .overlay {
+                // Hidden while a book is dragged over, so the incoming spine has room.
+                if books.isEmpty, incomingIndex == nil {
+                    Text("No books on this shelf yet.")
+                        .font(.footnote.italic())
+                        .foregroundStyle(Theme.label.opacity(0.6))
+                        .allowsHitTesting(false)
+                }
+            }
             .scrollPosition($scrollPosition)
             .scrollDisabled(drag.picked != nil)
             .onScrollGeometryChange(for: ScrollMetrics.self) { geometry in
