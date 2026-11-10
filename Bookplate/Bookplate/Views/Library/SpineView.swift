@@ -13,20 +13,58 @@ struct SpineView: View {
         return min(max(CGFloat(pageCount) / 12, minWidth), maxWidth)
     }
 
+    /// Optional so spines still draw where no store is provided (e.g. previews).
+    @Environment(LibraryStore.self) private var store: LibraryStore?
+
     private var appearance: BookAppearance { BookAppearance(bookId: book.id) }
+    private var status: String? { store?.meta(for: book.id)?.status }
 
     var body: some View {
-        Text(book.title)
-            .font(.system(size: 9, weight: .semibold, design: .serif))
-            .foregroundStyle(appearance.textColor.opacity(0.92))
-            .lineLimit(1)
-            .frame(width: appearance.spineHeight - 12)
-            .rotationEffect(.degrees(-90))
-            .frame(width: Self.width(forPageCount: book.pageCount), height: appearance.spineHeight)
-            .background(appearance.color)
-            .clipShape(RoundedRectangle(cornerRadius: 2))
-            .accessibilityElement()
-            .accessibilityLabel(book.title)
+        VStack(alignment: .leading, spacing: 0) {
+            Text(book.title)
+                .font(.system(size: 9, weight: .semibold, design: .serif))
+            if let author = book.authors.first, !author.isEmpty {
+                Text(author)
+                    .font(.system(size: 6.5, weight: .medium))
+                    .opacity(0.75)
+            }
+        }
+        .foregroundStyle(appearance.textColor.opacity(0.92))
+        .lineLimit(1)
+        .frame(width: appearance.spineHeight - 16, alignment: .leading)
+        .rotationEffect(.degrees(-90))
+        .frame(width: Self.width(forPageCount: book.pageCount), height: appearance.spineHeight)
+        .overlay(alignment: .topTrailing) {
+            if let color = Self.statusColor(status) {
+                Circle()
+                    .fill(color)
+                    .overlay(Circle().stroke(.black.opacity(0.25), lineWidth: 0.5))
+                    .frame(width: 6, height: 6)
+                    .padding(.top, 4)
+                    .padding(.trailing, 3)
+            }
+        }
+        .background(appearance.color)
+        .clipShape(RoundedRectangle(cornerRadius: 2))
+        .accessibilityElement()
+        .accessibilityLabel(accessibilityText)
+    }
+
+    /// Green for Read, blue for Reading, amber for Want; nil (no dot) otherwise.
+    static func statusColor(_ status: String?) -> Color? {
+        switch status {
+        case BookMeta.Status.read: Theme.statusRead
+        case BookMeta.Status.reading: Theme.statusReading
+        case BookMeta.Status.want: Theme.statusWant
+        default: nil
+        }
+    }
+
+    private var accessibilityText: String {
+        var parts = [book.title]
+        if let author = book.authors.first, !author.isEmpty { parts.append("by \(author)") }
+        if let status, Self.statusColor(status) != nil { parts.append(LibraryFilter.statusTitle(status)) }
+        return parts.joined(separator: ", ")
     }
 }
 

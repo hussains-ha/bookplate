@@ -16,6 +16,10 @@ extension Theme {
     static let wood = Color(red: 0.24, green: 0.15, blue: 0.10)
     static let woodShelf = Color(red: 0.34, green: 0.22, blue: 0.14)
     static let label = Color(red: 0.93, green: 0.88, blue: 0.78)
+    /// Reading-status dots on spines.
+    static let statusRead = Color(red: 0.36, green: 0.72, blue: 0.40)
+    static let statusReading = Color(red: 0.33, green: 0.58, blue: 0.93)
+    static let statusWant = Color(red: 0.96, green: 0.70, blue: 0.22)
 
     static let spineColors: [Color] = [
         Color(red: 0.55, green: 0.15, blue: 0.18), Color(red: 0.13, green: 0.35, blue: 0.30),
