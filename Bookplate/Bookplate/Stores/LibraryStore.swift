@@ -10,6 +10,7 @@ final class LibraryStore {
     private(set) var metas: [BookMeta]
     private(set) var bookshelf: Bookshelf
     private(set) var lists: [BookList] = []
+    private(set) var settings: LibrarySettings
     /// Recent deletions, newest last, so they can be undone.
     private(set) var undoStack: [Deletion] = []
 
@@ -21,11 +22,12 @@ final class LibraryStore {
     private let localFiles: LocalBookFiles?
 
     init(books: [Book], metas: [BookMeta], bookshelf: Bookshelf, lists: [BookList] = [],
-         coverLookup: CoverLookup? = nil, sync: LibrarySync? = nil, localFiles: LocalBookFiles? = nil) {
+         settings: LibrarySettings = LibrarySettings(), coverLookup: CoverLookup? = nil, sync: LibrarySync? = nil, localFiles: LocalBookFiles? = nil) {
         self.books = books
         self.metas = metas
         self.bookshelf = bookshelf
         self.lists = lists
+        self.settings = settings
         self.coverLookup = coverLookup ?? CoverLookupService()
         self.sync = sync
         self.localFiles = localFiles
@@ -50,7 +52,7 @@ final class LibraryStore {
         let bookshelf = Bookshelf(id: "bookshelf-\(userId.uuidString.lowercased())", name: "My Library",
                                   shelves: snapshot.shelves, appearance: .classic)
         return LibraryStore(books: snapshot.books, metas: localFiles?.apply(to: snapshot.metas) ?? snapshot.metas,
-                            bookshelf: bookshelf, lists: snapshot.lists, coverLookup: coverLookup,
+                            bookshelf: bookshelf, lists: snapshot.lists, settings: snapshot.settings, coverLookup: coverLookup,
                             sync: sync, localFiles: localFiles)
     }
 
@@ -257,8 +259,37 @@ final class LibraryStore {
         }
     }
 
-    func setStatus(_ status: String, for bookId: String) {
-        updateMeta(bookId) { $0.status = status }
+    /// Changes a book's status and keeps its reading dates in step: starting a book records when it
+    /// was started, finishing it records today (and a start date if there wasn't one), and moving back
+    /// clears the dates that no longer apply.
+    func setStatus(_ status: String, for bookId: String, now: Date = Date()) {
+        updateMeta(bookId) { meta in
+            guard meta.status != status else { return }
+            meta.status = status
+            switch status {
+            case BookMeta.Status.want:
+                meta.startedDate = nil
+                meta.finishedDate = nil
+            case BookMeta.Status.reading:
+                meta.startedDate = meta.startedDate ?? now
+                meta.finishedDate = nil
+            case BookMeta.Status.read:
+                meta.startedDate = meta.startedDate ?? now
+                meta.finishedDate = now
+            default:
+                break
+            }
+        }
+    }
+
+    // MARK: Settings
+
+    /// Sets this year's reading goal, kept within `LibrarySettings.readingGoalRange`.
+    func setReadingGoal(_ goal: Int) {
+        let goal = min(max(goal, LibrarySettings.readingGoalRange.lowerBound), LibrarySettings.readingGoalRange.upperBound)
+        guard settings.readingGoal != goal else { return }
+        settings.readingGoal = goal
+        save(.saveSettings(settings))
     }
 
     /// 1...5 stars, or nil to clear. Anything else is ignored.

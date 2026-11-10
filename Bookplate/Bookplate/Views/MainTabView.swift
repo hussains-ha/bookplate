@@ -10,7 +10,7 @@ struct MainTabView: View {
                 .tabItem { Label("Library", systemImage: "books.vertical") }
             PlaceholderTab(title: "Lists")
                 .tabItem { Label("Lists", systemImage: "list.bullet") }
-            PlaceholderTab(title: "Stats")
+            StatsView()
                 .tabItem { Label("Stats", systemImage: "chart.bar") }
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }

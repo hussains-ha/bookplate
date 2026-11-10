@@ -8,6 +8,7 @@ struct LibrarySnapshot: Equatable {
     /// In bookcase order, each with its books in shelf order.
     var shelves: [Shelf] = []
     var lists: [BookList] = []
+    var settings = LibrarySettings()
 }
 
 /// One saved change. Changes are applied in the order they were made, so a book is
@@ -26,6 +27,7 @@ enum LibraryChange: Codable, Equatable {
     case setShelfBooks(shelfId: String, bookIds: [String])
     case saveList(BookList, position: Int)
     case setListBooks(listId: String, bookIds: [String])
+    case saveSettings(LibrarySettings)
     /// Uploads the custom cover saved on this device as `fileName` (in the images folder) and records it.
     /// If the file is gone (replaced since), there's nothing to upload and the change is skipped.
     case uploadCover(bookId: String, fileName: String)
@@ -98,6 +100,21 @@ struct BookMetaRow: Codable, Equatable {
     }
 }
 
+/// The `library_settings` row.
+struct SettingsRow: Codable, Equatable {
+    var readingGoal: Int
+
+    enum CodingKeys: String, CodingKey {
+        case readingGoal = "reading_goal"
+    }
+
+    init(_ settings: LibrarySettings) {
+        readingGoal = settings.readingGoal
+    }
+
+    var settings: LibrarySettings { LibrarySettings(readingGoal: readingGoal) }
+}
+
 /// A `shelves` or `lists` row.
 struct CollectionRow: Codable, Equatable {
     var id: String
@@ -154,7 +171,8 @@ struct MembershipRow: Codable, Equatable {
 extension LibrarySnapshot {
     /// Builds a snapshot from table rows. Membership rows pointing at unknown books are skipped.
     init(books: [BookRow], metas: [BookMetaRow], shelves: [CollectionRow], shelfBooks: [MembershipRow],
-         lists: [CollectionRow], listBooks: [MembershipRow]) {
+         lists: [CollectionRow], listBooks: [MembershipRow], settings: [SettingsRow] = []) {
+        self.settings = settings.first?.settings ?? LibrarySettings()
         self.books = books.map(\.book)
         self.metas = metas.map(\.meta)
         let known = Set(self.books.map(\.id))
@@ -195,8 +213,9 @@ struct SupabaseLibraryRepository: LibraryRepository {
             async let shelfBooks: [MembershipRow] = client.from("shelf_books").select("shelf_id,book_id,position").execute().value
             async let lists: [CollectionRow] = client.from("lists").select("id,name,position").execute().value
             async let listBooks: [MembershipRow] = client.from("list_books").select("list_id,book_id,position").execute().value
+            async let settings: [SettingsRow] = client.from("library_settings").select("reading_goal").execute().value
             return try await LibrarySnapshot(books: books, metas: metas, shelves: shelves, shelfBooks: shelfBooks,
-                                             lists: lists, listBooks: listBooks)
+                                             lists: lists, listBooks: listBooks, settings: settings)
         }
     }
 
@@ -236,6 +255,9 @@ struct SupabaseLibraryRepository: LibraryRepository {
                 try await client.from("lists").upsert(row, onConflict: "user_id,id", returning: .minimal).execute()
             case .setListBooks(let listId, let bookIds):
                 try await client.rpc("set_list_books", params: SetBooksParams(id: listId, bookIds: bookIds, idKey: "p_list_id")).execute()
+            case .saveSettings(let settings):
+                try await client.from("library_settings")
+                    .upsert(SettingsRow(settings), onConflict: "user_id", returning: .minimal).execute()
             }
         }
     }
@@ -346,6 +368,8 @@ extension LibrarySnapshot {
         case .setListBooks(let listId, let bookIds):
             guard let i = lists.firstIndex(where: { $0.id == listId }) else { throw .rejected("No list \(listId)") }
             lists[i].bookIds = bookIds.filter(hasBook)
+        case .saveSettings(let settings):
+            self.settings = settings
         }
     }
 

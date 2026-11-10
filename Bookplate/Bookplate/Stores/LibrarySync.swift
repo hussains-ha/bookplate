@@ -133,6 +133,7 @@ private extension LibraryChange {
         case (.saveMeta(let a), .saveMeta(let b)): a.bookId == b.bookId
         case (.setShelfBooks(let a, _), .setShelfBooks(let b, _)): a == b
         case (.setListBooks(let a, _), .setListBooks(let b, _)): a == b
+        case (.saveSettings, .saveSettings): true
         // Only the latest cover choice for a book matters.
         case (.uploadCover(let a, _), .uploadCover(let b, _)), (.uploadCover(let a, _), .deleteCover(let b)),
              (.deleteCover(let a), .uploadCover(let b, _)), (.deleteCover(let a), .deleteCover(let b)): a == b
