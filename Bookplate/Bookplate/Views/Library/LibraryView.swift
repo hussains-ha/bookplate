@@ -37,6 +37,13 @@ struct LibraryView: View {
                 HStack {
                     Image(systemName: "magnifyingglass").foregroundStyle(Theme.mutedText)
                     TextField("Title, author, or tag", text: $query)
+                    if !query.isEmpty {
+                        Button { query = "" } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.mutedText)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear search")
+                    }
                     filterMenu
                 }
                 .authFieldStyle()
@@ -94,17 +101,17 @@ struct LibraryView: View {
 
     private var filterMenu: some View {
         Menu {
-            Picker("Show", selection: $filter) {
+            Section {
                 filterRow(.all)
-                Section {
-                    ForEach(LibraryFilter.statuses, id: \.self) { filterRow(.status($0)) }
-                    filterRow(.favorites)
-                }
-                let tags = store.allTags
-                if !tags.isEmpty {
-                    Section("Tags") {
-                        ForEach(tags, id: \.self) { filterRow(.tag($0)) }
-                    }
+            }
+            Section {
+                ForEach(LibraryFilter.statuses, id: \.self) { filterRow(.status($0)) }
+                filterRow(.favorites)
+            }
+            let tags = store.allTags
+            if !tags.isEmpty {
+                Section("Tags") {
+                    ForEach(tags, id: \.self) { filterRow(.tag($0)) }
                 }
             }
         } label: {
@@ -123,7 +130,10 @@ struct LibraryView: View {
     }
 
     private func filterRow(_ option: LibraryFilter) -> some View {
-        Text("\(option.title) (\(store.count(for: option)))").tag(option)
+        Button { filter = option } label: {
+            let text = "\(option.title) (\(store.count(for: option)))"
+            if filter == option { Label(text, systemImage: "checkmark") } else { Text(text) }
+        }
     }
 
     private var bookcase: some View {
