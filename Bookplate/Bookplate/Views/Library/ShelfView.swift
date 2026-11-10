@@ -80,7 +80,9 @@ struct ShelfView: View {
                     Text(renameProblem.message)
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(Theme.label)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
                 }
                 Spacer()
                 Text("\(books.count)")
@@ -141,7 +143,7 @@ struct ShelfView: View {
             .foregroundStyle(Theme.brown)
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
-            .frame(maxWidth: 220)
+            .frame(minWidth: 90, maxWidth: 220)
             .background(Theme.label, in: RoundedRectangle(cornerRadius: 1))
             .accessibilityLabel("Shelf name")
         } else {
