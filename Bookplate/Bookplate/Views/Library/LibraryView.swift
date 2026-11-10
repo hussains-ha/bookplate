@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LibraryView: View {
     @Environment(LibraryStore.self) private var store
+    @Environment(\.palette) private var palette
 
     @State private var query = ""
     @State private var filter: LibraryFilter = .all
@@ -39,11 +40,11 @@ struct LibraryView: View {
                 emptyLibrary
             } else {
                 HStack {
-                    Image(systemName: "magnifyingglass").foregroundStyle(Theme.mutedText)
+                    Image(systemName: "magnifyingglass").foregroundStyle(palette.mutedText)
                     TextField("Title, author, or tag", text: $query)
                     if !query.isEmpty {
                         Button { query = "" } label: {
-                            Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.mutedText)
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(palette.mutedText)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Clear search")
@@ -74,7 +75,7 @@ struct LibraryView: View {
         }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.background.ignoresSafeArea())
+        .background(palette.background.ignoresSafeArea())
         .sheet(isPresented: $showingAddBook) {
             AddBookView(defaultShelfId: store.defaultShelfId)
         }
@@ -125,7 +126,7 @@ struct LibraryView: View {
                 Image(systemName: "chevron.down").font(.caption2.weight(.bold))
             }
             .font(.subheadline.weight(.semibold))
-            .foregroundStyle(filter == .all ? Theme.mutedText : Theme.brown)
+            .foregroundStyle(filter == .all ? palette.mutedText : palette.accent)
             .frame(maxWidth: 140, alignment: .trailing)
             .fixedSize(horizontal: true, vertical: false)
         }
@@ -194,20 +195,20 @@ struct LibraryView: View {
                                  maxOffsetY: max(0, geometry.contentSize.height - geometry.visibleRect.height))
         } action: { _, new in libraryMetrics = new }
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(ShelfDrag.space)) } action: { drag.viewport = $0 }
-        .background(Theme.wood, in: RoundedRectangle(cornerRadius: 6))
+        .background(palette.frame, in: RoundedRectangle(cornerRadius: 6))
     }
 
     private var emptyLibrary: some View {
         VStack(spacing: 12) {
             Image(systemName: "books.vertical")
                 .font(.system(size: 44))
-                .foregroundStyle(Theme.brown.opacity(0.6))
+                .foregroundStyle(palette.accent.opacity(0.6))
             Text("Your library is empty")
                 .font(Theme.title(22))
-                .foregroundStyle(Theme.brown)
+                .foregroundStyle(palette.accent)
             Text("Add your first book to start filling your shelves.")
                 .font(.subheadline)
-                .foregroundStyle(Theme.mutedText)
+                .foregroundStyle(palette.mutedText)
                 .multilineTextAlignment(.center)
             Button { showingAddBook = true } label: {
                 Label("Add a book", systemImage: "plus")
@@ -215,7 +216,7 @@ struct LibraryView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
-                    .background(Theme.brown, in: Capsule())
+                    .background(palette.accent, in: Capsule())
             }
             .padding(.top, 4)
         }
@@ -237,10 +238,10 @@ struct LibraryView: View {
         VStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 36))
-                .foregroundStyle(Theme.brown.opacity(0.5))
+                .foregroundStyle(palette.accent.opacity(0.5))
             Text(noMatchesMessage)
                 .font(.headline)
-                .foregroundStyle(Theme.brown)
+                .foregroundStyle(palette.accent)
                 .multilineTextAlignment(.center)
         }
         .padding(24)
@@ -302,7 +303,7 @@ struct LibraryView: View {
     private var shelvesMenu: some View {
         let jumps = store.shelfJumps
         if !jumps.isEmpty {
-            Text("·").foregroundStyle(Theme.mutedText)
+            Text("·").foregroundStyle(palette.mutedText)
             Menu {
                 ForEach(jumps) { jump in
                     Button("\(jump.name) (\(jump.count))") { jumpToShelf(jump.id) }
@@ -313,7 +314,7 @@ struct LibraryView: View {
                     Image(systemName: "chevron.down").font(.caption2.weight(.bold))
                 }
                 .fontWeight(.semibold)
-                .foregroundStyle(Theme.brown)
+                .foregroundStyle(palette.accent)
             }
             .accessibilityLabel("Jump to shelf")
         }
@@ -347,8 +348,8 @@ struct LibraryView: View {
             .accessibilityLabel("Zoom in")
         }
         .font(.subheadline.weight(.semibold))
-        .foregroundStyle(Theme.brown)
-        .background(Theme.brown.opacity(0.1), in: Capsule())
+        .foregroundStyle(palette.accent)
+        .background(palette.accent.opacity(0.1), in: Capsule())
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Zoom, \(zoom.percent) percent")
     }
@@ -359,7 +360,7 @@ struct LibraryView: View {
             // Its own row, so the buttons above don't squeeze it.
             HStack(spacing: 4) {
                 Text("\(store.bookshelf.name) · \(store.books.count) \(store.books.count == 1 ? "book" : "books")")
-                    .foregroundStyle(Theme.mutedText)
+                    .foregroundStyle(palette.mutedText)
                 if !store.isLibraryEmpty { shelvesMenu }
             }
             .font(.footnote)
@@ -372,7 +373,7 @@ struct LibraryView: View {
         HStack(alignment: .center) {
             Text("Bookplate")
                 .font(Theme.title(32))
-                .foregroundStyle(Theme.brown)
+                .foregroundStyle(palette.accent)
             Spacer()
             if !store.isLibraryEmpty { zoomControl }
             Menu {
@@ -380,9 +381,9 @@ struct LibraryView: View {
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.headline)
-                    .foregroundStyle(Theme.brown)
+                    .foregroundStyle(palette.accent)
                     .frame(width: 40, height: 40)
-                    .background(Theme.brown.opacity(0.1), in: Circle())
+                    .background(palette.accent.opacity(0.1), in: Circle())
             }
             .accessibilityLabel("Library options")
             Button { showingAddBook = true } label: {
@@ -390,7 +391,7 @@ struct LibraryView: View {
                     .font(.headline)
                     .foregroundStyle(.white)
                     .frame(width: 40, height: 40)
-                    .background(Theme.brown, in: Circle())
+                    .background(palette.accent, in: Circle())
             }
             .accessibilityLabel("Add book")
         }

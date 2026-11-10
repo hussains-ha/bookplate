@@ -50,7 +50,7 @@ final class LibraryStore {
     static func loaded(_ snapshot: LibrarySnapshot, userId: UUID, sync: LibrarySync,
                        localFiles: LocalBookFiles?, coverLookup: CoverLookup? = nil) -> LibraryStore {
         let bookshelf = Bookshelf(id: "bookshelf-\(userId.uuidString.lowercased())", name: "My Library",
-                                  shelves: snapshot.shelves, appearance: .classic)
+                                  shelves: snapshot.shelves, appearance: snapshot.settings.appearance)
         return LibraryStore(books: snapshot.books, metas: localFiles?.apply(to: snapshot.metas) ?? snapshot.metas,
                             bookshelf: bookshelf, lists: snapshot.lists, settings: snapshot.settings, coverLookup: coverLookup,
                             sync: sync, localFiles: localFiles)
@@ -352,6 +352,14 @@ final class LibraryStore {
     }
 
     // MARK: Settings
+
+    /// Changes how the bookcase looks and saves it with the library's settings.
+    func setAppearance(_ appearance: Bookshelf.Appearance) {
+        bookshelf.appearance = appearance
+        guard settings.appearance != appearance else { return }
+        settings.appearance = appearance
+        save(.saveSettings(settings))
+    }
 
     /// Sets this year's reading goal, kept within `LibrarySettings.readingGoalRange`.
     func setReadingGoal(_ goal: Int) {

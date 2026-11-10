@@ -7,4 +7,6 @@ struct LibrarySettings: Codable, Equatable, Sendable {
 
     /// Books to finish this calendar year.
     var readingGoal: Int = defaultReadingGoal
+    /// How the bookcase looks.
+    var appearance: Bookshelf.Appearance = .classic
 }
