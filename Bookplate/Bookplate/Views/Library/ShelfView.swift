@@ -126,7 +126,17 @@ struct ShelfView: View {
             // The picked book left the shelf (or the shelf changed under the drag): put everything back.
             if pickedId != nil, pickedIndex == nil { finish(drop: false) }
         }
-        .onChange(of: drag.finger) { if pickedId != nil { updateTarget() } }
+        .background {
+            // Only the source shelf follows the finger, so other shelves don't re-render on every move.
+            if pickedId != nil {
+                Color.clear.onChange(of: drag.finger) { updateTarget() }
+            }
+        }
+        .onChange(of: isHovered) { if pickedId != nil { updateTarget() } }
+        .onDisappear {
+            // Never leave a book floating (and every scroll view disabled) if this shelf goes away mid-drag.
+            if pickedId != nil { drag.picked = nil }
+        }
         .task(id: isHovered) { await autoScrollWhileHovered() }
     }
 
@@ -254,7 +264,7 @@ struct ShelfView: View {
                 .offset(x: isPicked ? 0 : shiftForGap(at: index))
         }
         .zIndex(isPicked ? 1 : 0)
-        .onTapGesture { onSelect(book) }
+        .onTapGesture { if drag.picked == nil { onSelect(book) } }
         .accessibilityAddTraits(.isButton)
         .gesture(pickUpGesture(for: book, at: index), including: canReorder ? .all : .subviews)
     }
@@ -266,7 +276,7 @@ struct ShelfView: View {
             return ShelfReorder.shift(forIndex: index, pickedIndex: picked, targetIndex: target,
                                       widths: widths, spacing: Self.spacing)
         }
-        if let incoming = incomingIndex, index >= incoming, let book = drag.picked?.book {
+        if let incoming = incomingIndex.map({ min($0, widths.count) }), index >= incoming, let book = drag.picked?.book {
             return SpineView.width(forPageCount: book.pageCount) + Self.spacing
         }
         return 0
@@ -275,7 +285,7 @@ struct ShelfView: View {
     /// The translucent spot where a book from another shelf would land.
     @ViewBuilder
     private var incomingPlaceholder: some View {
-        if let index = incomingIndex, let book = drag.picked?.book {
+        if let index = incomingIndex.map({ min($0, widths.count) }), let book = drag.picked?.book {
             let leading = widths[..<index].reduce(0) { $0 + $1 + Self.spacing }
             SpineView(book: book)
                 .opacity(0.3)

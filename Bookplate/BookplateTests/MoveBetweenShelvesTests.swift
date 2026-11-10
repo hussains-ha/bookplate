@@ -97,8 +97,11 @@ struct MoveBetweenShelvesTests {
         let repo = InMemoryLibraryRepository(LibrarySnapshot(books: books, shelves: [
             Shelf(id: "a", name: "A", bookIds: ["1", "2"]), Shelf(id: "b", name: "B", bookIds: ["2"])]))
         let sync = LibrarySync(repository: repo, pendingFile: nil, retryDelays: [.zero], sleep: { _ in })
-        _ = LibraryStore.loaded(try await repo.loadLibrary(), userId: UUID(), sync: sync,
-                                localFiles: nil, coverLookup: NoCoverLookup())
+        let store = LibraryStore.loaded(try await repo.loadLibrary(), userId: UUID(), sync: sync,
+                                        localFiles: nil, coverLookup: NoCoverLookup())
+        await sync.waitUntilIdle()
+        #expect(repo.applied.isEmpty)       // nothing goes out until leftovers are queued
+        store.saveOneCopyRepairs()
         await sync.waitUntilIdle()
         #expect(try await repo.loadLibrary().shelves.map(\.bookIds) == [["1", "2"], []])
     }

@@ -31,11 +31,18 @@ final class ShelfDrag {
         let index: Int
     }
 
-    var picked: Picked?
-    var finger: CGPoint = .zero
-    var shelves: [String: ShelfLayout] = [:]
+    var picked: Picked? { didSet { refresh() } }
+    var finger: CGPoint = .zero { didSet { refresh() } }
+    var shelves: [String: ShelfLayout] = [:] { didSet { refresh() } }
     /// The visible part of the bookcase.
-    var viewport: CGRect = .zero
+    var viewport: CGRect = .zero { didSet { refresh() } }
+
+    /// The shelf under the finger, if it's in the visible bookcase.
+    /// Stored (not computed) so shelves only re-render when it changes, not on every finger move.
+    private(set) var hoveredShelfId: String?
+    /// Where the book would land on another, unlocked shelf. Nil over its own shelf (which handles
+    /// reordering itself), over a locked shelf, or outside every shelf.
+    private(set) var target: Target?
 
     /// Shelves are this far apart; a finger in the gap counts as over the nearer shelf.
     static let shelfGap: CGFloat = 14
@@ -45,18 +52,24 @@ final class ShelfDrag {
         return CGSize(width: finger.x - picked.fingerStart.x, height: finger.y - picked.fingerStart.y)
     }
 
-    /// The shelf under the finger, if it's in the visible bookcase.
-    var hoveredShelfId: String? {
-        guard picked != nil, viewport.contains(finger) else { return nil }
-        return shelves.first { $0.value.frame.insetBy(dx: 0, dy: -Self.shelfGap / 2).contains(finger) }?.key
+    private func refresh() {
+        let hovered = Self.hoveredShelf(picked: picked, finger: finger, viewport: viewport, shelves: shelves)
+        if hovered != hoveredShelfId { hoveredShelfId = hovered }
+        let newTarget = Self.target(picked: picked, translation: translation, hovered: hovered, shelves: shelves)
+        if newTarget != target { target = newTarget }
     }
 
-    /// Where the book would land on another, unlocked shelf. Nil over its own shelf (which handles
-    /// reordering itself), over a locked shelf, or outside every shelf.
-    var target: Target? {
-        guard let picked, let id = hoveredShelfId, id != picked.sourceShelfId,
+    static func hoveredShelf(picked: Picked?, finger: CGPoint, viewport: CGRect, shelves: [String: ShelfLayout]) -> String? {
+        guard picked != nil, viewport.contains(finger) else { return nil }
+        return shelves.first { $0.value.frame.insetBy(dx: 0, dy: -shelfGap / 2).contains(finger) }?.key
+    }
+
+    /// Uses the dragged spine's center, like reordering within a shelf does, so the slot doesn't jump
+    /// when the book crosses onto another shelf.
+    static func target(picked: Picked?, translation: CGSize, hovered: String?, shelves: [String: ShelfLayout]) -> Target? {
+        guard let picked, let id = hovered, id != picked.sourceShelfId,
               let layout = shelves[id], !layout.isLocked else { return nil }
-        let index = layout.centers.filter { layout.rowOriginX + $0 < finger.x }.count
-        return Target(shelfId: id, index: index)
+        let center = picked.spineStart.x + translation.width
+        return Target(shelfId: id, index: layout.centers.filter { layout.rowOriginX + $0 < center }.count)
     }
 }

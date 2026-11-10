@@ -71,7 +71,7 @@ struct LibraryView: View {
             .background(Theme.wood, in: RoundedRectangle(cornerRadius: 6))
         }
         .coordinateSpace(.named(ShelfDrag.space))
-        .overlay(alignment: .topLeading) { floatingSpine }
+        .overlay(alignment: .topLeading) { FloatingSpine() }
         .environment(drag)
         .task(id: drag.picked?.book.id) { await autoScrollWhileDragging() }
         .overlay(alignment: .bottom) {
@@ -110,21 +110,6 @@ struct LibraryView: View {
     }
 
     // MARK: Dragging between shelves
-
-    /// The picked-up book, drawn above every shelf so it can travel between them.
-    @ViewBuilder
-    private var floatingSpine: some View {
-        if let picked = drag.picked {
-            let height = BookAppearance(bookId: picked.book.id).spineHeight
-            SpineView(book: picked.book)
-                .scaleEffect(1.08, anchor: .bottom)
-                .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
-                .position(x: picked.spineStart.x + drag.translation.width,
-                          y: picked.spineStart.y - height / 2 - 6 + drag.translation.height)
-                .allowsHitTesting(false)
-                .transition(.identity)
-        }
-    }
 
     /// Scrolls the bookcase up or down while a picked-up book is held near its top or bottom edge.
     private func autoScrollWhileDragging() async {
@@ -205,6 +190,24 @@ struct LibraryView: View {
             .accessibilityLabel("Add book")
         }
         .padding(.top, 8)
+    }
+}
+
+/// The picked-up book, drawn above every shelf so it can travel between them.
+/// Its own view, so following the finger re-renders only this, not the whole library.
+private struct FloatingSpine: View {
+    @Environment(ShelfDrag.self) private var drag
+
+    var body: some View {
+        if let picked = drag.picked {
+            let height = BookAppearance(bookId: picked.book.id).spineHeight
+            SpineView(book: picked.book)
+                .scaleEffect(1.08, anchor: .bottom)
+                .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
+                .position(x: picked.spineStart.x + drag.translation.width,
+                          y: picked.spineStart.y - height / 2 - 6 + drag.translation.height)
+                .allowsHitTesting(false)
+        }
     }
 }
 

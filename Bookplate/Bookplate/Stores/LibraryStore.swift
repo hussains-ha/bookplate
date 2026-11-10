@@ -30,7 +30,18 @@ final class LibraryStore {
         self.sync = sync
         self.localFiles = localFiles
         // Libraries saved before books could move between shelves may list a book twice.
-        for i in self.bookshelf.keepOneCopyOfEachBook() { saveShelfBooks(at: i) }
+        shelvesNeedingRepair = self.bookshelf.keepOneCopyOfEachBook().map { self.bookshelf.shelves[$0].id }
+    }
+
+    /// Shelves that `init` cleaned up under the one-copy rule but that aren't saved yet.
+    private var shelvesNeedingRepair: [String] = []
+
+    /// Saves the one-copy cleanup from loading. Call after queueing any leftover changes from the last session.
+    func saveOneCopyRepairs() {
+        for id in shelvesNeedingRepair {
+            if let i = bookshelf.shelves.firstIndex(where: { $0.id == id }) { saveShelfBooks(at: i) }
+        }
+        shelvesNeedingRepair = []
     }
 
     /// A signed-in user's library, loaded from Supabase. Covers and note photos come from the device.
