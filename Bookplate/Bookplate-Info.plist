@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Bookplate uses the camera to take a photo of a book for its cover.</string>
 	<key>SupabaseKey</key>
 	<string>$(SUPABASE_KEY)</string>
 	<key>SupabaseURL</key>

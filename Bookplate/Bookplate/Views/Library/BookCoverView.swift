@@ -6,12 +6,19 @@ struct BookCoverView: View {
     var meta: BookMeta?
 
     var body: some View {
-        AsyncImage(url: book.displayCoverURL(meta: meta), transaction: Transaction(animation: .easeIn(duration: 0.5))) { phase in
+        let url = book.displayCoverURL(meta: meta)
+        AsyncImage(url: url, transaction: Transaction(animation: .easeIn(duration: 0.5))) { phase in
             switch phase {
             case .success(let image):
-                image
-                    .resizable()
-                    .scaledToFit()
+                // Always the 2:3 book shape, so a photo of any shape doesn't shift the layout.
+                Color.clear
+                    .aspectRatio(2 / 3, contentMode: .fit)
+                    .overlay {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
                     // Same drop shadow as the generated cover, which draws its own.
                     .shadow(color: .black.opacity(0.3), radius: 4, x: 2, y: 3)
                     .transition(.opacity)
@@ -19,6 +26,8 @@ struct BookCoverView: View {
                 GeneratedCoverView(book: book)
             }
         }
+        // A new identity per URL, so clearing a custom cover drops the old image instead of keeping it.
+        .id(url)
         .accessibilityElement()
         .accessibilityLabel(book.title)
     }
