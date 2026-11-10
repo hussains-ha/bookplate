@@ -81,6 +81,8 @@ struct SignedInLibraryView: View {
             let store = LibraryStore.loaded(snapshot, userId: user.id, sync: sync,
                                             localFiles: try? LocalBookFiles.forUser(user.id))
             sync.enqueue(contentsOf: toSend)
+            // After the leftovers, so fixes never jump ahead of changes they depend on.
+            store.saveOneCopyRepairs()
             unsavedTitles = unsaved.map(\.title)
             phase = .ready(store)
         } catch {
