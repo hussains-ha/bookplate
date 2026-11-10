@@ -7,7 +7,13 @@ struct LibraryView: View {
     @State private var showingAddBook = false
     @State private var showingAddShelf = false
     @State private var selectedBook: Book?
-    @State private var shelfToDelete: Shelf?
+    @State private var shelfToDelete: PendingDeletion?
+
+    /// Worked out once when the prompt opens, so it doesn't change while the prompt closes.
+    private struct PendingDeletion {
+        let shelf: Shelf
+        let deletion: LibraryStore.ShelfDeletion?
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -33,7 +39,7 @@ struct LibraryView: View {
                             onMoveUp: index > 0 ? { withAnimation(.snappy) { store.moveShelf(shelf.id, to: index - 1) } } : nil,
                             onMoveDown: index < store.bookshelf.shelves.count - 1
                                 ? { withAnimation(.snappy) { store.moveShelf(shelf.id, to: index + 1) } } : nil,
-                            onDelete: store.bookshelf.shelves.count > 1 ? { shelfToDelete = shelf } : nil
+                            onDelete: store.bookshelf.shelves.count > 1 ? { shelfToDelete = PendingDeletion(shelf: shelf, deletion: store.shelfDeletion(shelf.id)) } : nil
                         )
                     }
                 }
@@ -56,17 +62,17 @@ struct LibraryView: View {
             AddShelfView()
         }
         .alert(deleteTitle, isPresented: Binding(get: { shelfToDelete != nil }, set: { if !$0 { shelfToDelete = nil } }),
-               presenting: shelfToDelete) { shelf in
-            if case .allowed = store.shelfDeletion(shelf.id) {
+               presenting: shelfToDelete) { pending in
+            if case .allowed = pending.deletion {
                 Button("Delete", role: .destructive) {
-                    withAnimation(.snappy) { _ = store.deleteShelf(shelf.id) }
+                    withAnimation(.snappy) { _ = store.deleteShelf(pending.shelf.id) }
                 }
                 Button("Cancel", role: .cancel) {}
             } else {
                 Button("OK", role: .cancel) {}
             }
-        } message: { shelf in
-            Text(deleteMessage(for: shelf))
+        } message: { pending in
+            Text(deleteMessage(for: pending))
         }
         .sheet(item: $selectedBook) { book in
             BookDetailView(bookId: book.id)
@@ -74,15 +80,17 @@ struct LibraryView: View {
     }
 
     private var deleteTitle: String {
-        guard let shelf = shelfToDelete else { return "" }
-        if case .allowed = store.shelfDeletion(shelf.id) { return "Delete \u{201C}\(shelf.name)\u{201D}?" }
+        guard let pending = shelfToDelete else { return "" }
+        if case .allowed = pending.deletion { return "Delete \u{201C}\(pending.shelf.name)\u{201D}?" }
         return "Can\u{2019}t Delete Shelf"
     }
 
-    private func deleteMessage(for shelf: Shelf) -> String {
-        switch store.shelfDeletion(shelf.id) {
+    private func deleteMessage(for pending: PendingDeletion) -> String {
+        switch pending.deletion {
         case .allowed(let target?):
-            let count = shelf.bookIds.count
+            // Books already on the target aren't moved.
+            let count = pending.shelf.bookIds.filter { !target.bookIds.contains($0) }.count
+            guard count > 0 else { return "Its books are already on \u{201C}\(target.name)\u{201D}. No books are removed from your library." }
             return "Its \(count) \(count == 1 ? "book" : "books") will move to \u{201C}\(target.name)\u{201D}. No books are removed from your library."
         case .allowed(nil):
             return "This shelf is empty."
