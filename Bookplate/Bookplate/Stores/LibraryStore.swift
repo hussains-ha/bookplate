@@ -141,6 +141,45 @@ final class LibraryStore {
         for i in bookshelf.shelves.indices { saveShelf(at: i) }
     }
 
+    /// Whether a shelf can be deleted, and where its books would go. Drives the confirmation prompt.
+    enum ShelfDeletion: Equatable {
+        /// `moveTo` is nil when the shelf is empty.
+        case allowed(moveTo: Shelf?)
+        /// A bookcase keeps at least one shelf.
+        case lastShelf
+        /// The shelf has books, and every other shelf is locked so none can take them.
+        case noShelfForBooks
+    }
+
+    func shelfDeletion(_ shelfId: String) -> ShelfDeletion? {
+        guard let shelf = bookshelf.shelves.first(where: { $0.id == shelfId }) else { return nil }
+        let others = bookshelf.shelves.filter { $0.id != shelfId }
+        if others.isEmpty { return .lastShelf }
+        if shelf.bookIds.isEmpty { return .allowed(moveTo: nil) }
+        // Books go to the first remaining shelf that can take them.
+        guard let target = others.first(where: { !$0.isLocked }) else { return .noShelfForBooks }
+        return .allowed(moveTo: target)
+    }
+
+    /// Deletes a shelf, moving its books to the end of the first remaining unlocked shelf so none are lost.
+    /// Returns false, changing nothing, when `shelfDeletion` doesn't allow it.
+    @discardableResult
+    func deleteShelf(_ shelfId: String) -> Bool {
+        guard case .allowed(let target) = shelfDeletion(shelfId),
+              let index = bookshelf.shelves.firstIndex(where: { $0.id == shelfId }) else { return false }
+        let shelf = bookshelf.shelves[index]
+        if let target, let targetIndex = bookshelf.shelves.firstIndex(where: { $0.id == target.id }) {
+            let moving = shelf.bookIds.filter { !bookshelf.shelves[targetIndex].bookIds.contains($0) }
+            bookshelf.shelves[targetIndex].bookIds += moving
+            // Saved before the delete, so the books are never on no shelf at all.
+            saveShelfBooks(at: targetIndex)
+        }
+        bookshelf.shelves.remove(at: index)
+        save(.deleteShelf(id: shelfId))
+        for i in index..<bookshelf.shelves.count { saveShelf(at: i) }
+        return true
+    }
+
     /// True when there are shelves but none can take new books.
     var allShelvesLocked: Bool { !bookshelf.shelves.isEmpty && bookshelf.shelves.allSatisfy(\.isLocked) }
 

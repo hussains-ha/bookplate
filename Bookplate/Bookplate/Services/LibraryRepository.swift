@@ -20,6 +20,8 @@ enum LibraryChange: Codable, Equatable {
     case saveMeta(BookMeta)
     /// Name, position and lock. The shelf's books are saved with `setShelfBooks`.
     case saveShelf(Shelf, position: Int)
+    /// The database removes the shelf's book entries with it; the books themselves stay.
+    case deleteShelf(id: String)
     case setShelfBooks(shelfId: String, bookIds: [String])
     case saveList(BookList, position: Int)
     case setListBooks(listId: String, bookIds: [String])
@@ -197,6 +199,8 @@ struct SupabaseLibraryRepository: LibraryRepository {
             case .saveShelf(let shelf, let position):
                 let row = CollectionRow(id: shelf.id, name: shelf.name, position: position, isLocked: shelf.isLocked)
                 try await client.from("shelves").upsert(row, onConflict: "user_id,id", returning: .minimal).execute()
+            case .deleteShelf(let id):
+                try await client.from("shelves").delete().eq("id", value: id).execute()
             case .setShelfBooks(let shelfId, let bookIds):
                 try await client.rpc("set_shelf_books", params: SetBooksParams(id: shelfId, bookIds: bookIds, idKey: "p_shelf_id")).execute()
             case .saveList(let list, let position):
@@ -280,6 +284,8 @@ extension LibrarySnapshot {
             var saved = shelf
             saved.bookIds = existing
             shelves.insert(saved, at: min(position, shelves.count))
+        case .deleteShelf(let id):
+            shelves.removeAll { $0.id == id }
         case .setShelfBooks(let shelfId, let bookIds):
             guard let i = shelves.firstIndex(where: { $0.id == shelfId }) else { throw .rejected("No shelf \(shelfId)") }
             // Like `set_shelf_books`: unknown books are skipped.
