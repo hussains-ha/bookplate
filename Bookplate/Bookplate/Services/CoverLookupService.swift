@@ -16,7 +16,7 @@ protocol HTTPClient: Sendable {
     func data(for request: URLRequest) async throws -> (Data, URLResponse)
 }
 
-struct URLSessionHTTPClient: HTTPClient {
+nonisolated struct URLSessionHTTPClient: HTTPClient {
     var session: URLSession = .shared
 
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
