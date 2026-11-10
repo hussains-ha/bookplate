@@ -16,32 +16,34 @@ struct SpineView: View {
     /// Optional so spines still draw where no store is provided (e.g. previews).
     @Environment(LibraryStore.self) private var store: LibraryStore?
 
+    @Environment(\.bookcaseScale) private var scale
+
     private var appearance: BookAppearance { BookAppearance(bookId: book.id) }
     private var status: String? { store?.meta(for: book.id)?.status }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(book.title)
-                .font(.system(size: 9, weight: .semibold, design: .serif))
-            if let author = book.authors.first, !author.isEmpty {
+                .font(.system(size: BookcaseZoom.titleSize(at: scale), weight: .semibold, design: .serif))
+            if let author = book.authors.first, !author.isEmpty, let size = BookcaseZoom.authorSize(at: scale) {
                 Text(author)
-                    .font(.system(size: 6.5, weight: .medium))
+                    .font(.system(size: size, weight: .medium))
                     .opacity(0.85)
             }
         }
         .foregroundStyle(appearance.textColor.opacity(0.92))
         .lineLimit(1)
-        .frame(width: appearance.spineHeight - 16, alignment: .leading)
+        .frame(width: (appearance.spineHeight - 16) * scale, alignment: .leading)
         .rotationEffect(.degrees(-90))
-        .frame(width: Self.width(forPageCount: book.pageCount), height: appearance.spineHeight)
+        .frame(width: Self.width(forPageCount: book.pageCount) * scale, height: appearance.spineHeight * scale)
         .overlay(alignment: .topTrailing) {
             if let color = Self.statusColor(status) {
                 Circle()
                     .fill(color)
                     .overlay(Circle().stroke(.black.opacity(0.25), lineWidth: 0.5))
-                    .frame(width: 6, height: 6)
-                    .padding(.top, 4)
-                    .padding(.trailing, 3)
+                    .frame(width: 6 * max(scale, 0.7), height: 6 * max(scale, 0.7))
+                    .padding(.top, 4 * scale)
+                    .padding(.trailing, 3 * scale)
             }
         }
         .background(appearance.color)

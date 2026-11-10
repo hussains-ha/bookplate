@@ -7,6 +7,8 @@ struct LibraryView: View {
     @State private var filter: LibraryFilter = .all
     /// Per-shelf display order for this session; missing means Custom.
     @State private var shelfSorts: [String: ShelfSort] = [:]
+    /// Kept while the app runs (not saved).
+    @State private var zoom = BookcaseZoom.standard
     @State private var showingAddBook = false
     @State private var showingAddShelf = false
     @State private var selectedBook: Book?
@@ -59,6 +61,7 @@ struct LibraryView: View {
         }
         .coordinateSpace(.named(ShelfDrag.space))
         .overlay(alignment: .topLeading) { FloatingSpine() }
+        .environment(\.bookcaseScale, zoom.scale)
         .environment(drag)
         .task(id: drag.picked?.book.id) { await autoScrollWhileDragging() }
         .overlay(alignment: .bottom) {
@@ -295,6 +298,26 @@ struct LibraryView: View {
         }
     }
 
+    private var zoomControl: some View {
+        HStack(spacing: 0) {
+            Button { withAnimation(.snappy) { zoom = zoom.zoomedOut() } } label: {
+                Image(systemName: "minus").frame(width: 32, height: 40)
+            }
+            .disabled(!zoom.canZoomOut)
+            .accessibilityLabel("Zoom out")
+            Button { withAnimation(.snappy) { zoom = zoom.zoomedIn() } } label: {
+                Image(systemName: "plus").frame(width: 32, height: 40)
+            }
+            .disabled(!zoom.canZoomIn)
+            .accessibilityLabel("Zoom in")
+        }
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(Theme.brown)
+        .background(Theme.brown.opacity(0.1), in: Capsule())
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Zoom, \(zoom.percent) percent")
+    }
+
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
@@ -306,6 +329,7 @@ struct LibraryView: View {
                     .foregroundStyle(Theme.mutedText)
             }
             Spacer()
+            if !store.isLibraryEmpty { zoomControl }
             Menu {
                 Button("New Shelf", systemImage: "rectangle.stack.badge.plus") { showingAddShelf = true }
             } label: {
@@ -333,10 +357,11 @@ struct LibraryView: View {
 /// Its own view, so following the finger re-renders only this, not the whole library.
 private struct FloatingSpine: View {
     @Environment(ShelfDrag.self) private var drag
+    @Environment(\.bookcaseScale) private var scale
 
     var body: some View {
         if let picked = drag.picked {
-            let height = BookAppearance(bookId: picked.book.id).spineHeight
+            let height = BookAppearance(bookId: picked.book.id).spineHeight * scale
             SpineView(book: picked.book)
                 .scaleEffect(1.08, anchor: .bottom)
                 .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
