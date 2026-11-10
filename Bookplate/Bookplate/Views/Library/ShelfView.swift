@@ -26,6 +26,7 @@ struct ShelfView: View {
     var isEditable = true
 
     @Environment(ShelfDrag.self) private var drag
+    @Environment(\.bookcaseScale) private var scale
 
     static let spacing: CGFloat = 2
     private static let rowPadding: CGFloat = 12
@@ -54,7 +55,7 @@ struct ShelfView: View {
     }
 
     private var canReorder: Bool { isReorderEnabled && !shelf.isLocked }
-    private var widths: [CGFloat] { books.map { SpineView.width(forPageCount: $0.pageCount) } }
+    private var widths: [CGFloat] { books.map { SpineView.width(forPageCount: $0.pageCount) * scale } }
     /// The book picked up from this shelf, if any.
     private var pickedId: String? { drag.picked?.sourceShelfId == shelf.id ? drag.picked?.book.id : nil }
     private var pickedIndex: Int? { books.firstIndex { $0.id == pickedId } }
@@ -84,7 +85,7 @@ struct ShelfView: View {
                     }
                 }
                 .padding(.horizontal, Self.rowPadding)
-                .frame(minHeight: 112, alignment: .bottom)
+                .frame(minHeight: 112 * scale, alignment: .bottom)
                 .overlay(alignment: .bottomLeading) { incomingPlaceholder }
             }
             .overlay {
@@ -323,7 +324,7 @@ struct ShelfView: View {
                                       widths: widths, spacing: Self.spacing)
         }
         if let incoming = incomingIndex.map({ min($0, widths.count) }), index >= incoming, let book = drag.picked?.book {
-            return SpineView.width(forPageCount: book.pageCount) + Self.spacing
+            return SpineView.width(forPageCount: book.pageCount) * scale + Self.spacing
         }
         return 0
     }
