@@ -35,12 +35,6 @@ struct DeleteShelfTests {
         #expect(store.bookshelf.shelves[1].bookIds == ["2", "3"])
     }
 
-    @Test func doesNotDuplicateBooksAlreadyOnTheTarget() {
-        let store = store([shelf("a", ["1", "2"]), shelf("b", ["2", "3"])])
-        #expect(store.deleteShelf("b"))
-        #expect(store.bookshelf.shelves[0].bookIds == ["1", "2", "3"])
-    }
-
     @Test func keepsAtLeastOneShelf() {
         let store = store([shelf("a", ["1"])])
         #expect(store.shelfDeletion("a") == .lastShelf)

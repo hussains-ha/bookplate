@@ -13,7 +13,7 @@ struct BookDetailStoreTests {
             BookMeta(bookId: $0.id, status: BookMeta.Status.want, rating: nil, notes: nil, notePhotos: [], tags: [],
                      customCover: nil, addedDate: .now, startedDate: nil, finishedDate: nil)
         }
-        let shelves = [Shelf(id: "s1", name: "One", bookIds: ["a", "b"]), Shelf(id: "s2", name: "Two", bookIds: ["a"])]
+        let shelves = [Shelf(id: "s1", name: "One", bookIds: ["a", "b"]), Shelf(id: "s2", name: "Two", bookIds: ["c"])]
         let store = LibraryStore(books: books, metas: metas,
                                  bookshelf: Bookshelf(id: "bs", name: "BS", shelves: shelves, appearance: .classic))
         store.addList(BookList(id: "l1", name: "List", bookIds: []))
@@ -90,8 +90,8 @@ struct BookDetailStoreTests {
 
     @Test func shelvesContainingABook() {
         let store = store()
-        #expect(store.shelves(containing: "a").map(\.id) == ["s1", "s2"])
-        #expect(store.shelves(containing: "b").map(\.id) == ["s1"])
+        #expect(store.shelves(containing: "a").map(\.id) == ["s1"])
+        #expect(store.shelves(containing: "c").map(\.id) == ["s2"])
     }
 
     @Test func removeBookClearsEverywhere() {

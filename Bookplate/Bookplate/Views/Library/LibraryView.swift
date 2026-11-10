@@ -8,12 +8,23 @@ struct LibraryView: View {
     @State private var showingAddShelf = false
     @State private var selectedBook: Book?
     @State private var shelfToDelete: PendingDeletion?
+    @State private var drag = ShelfDrag()
+    @State private var libraryScroll = ScrollPosition(edge: .top)
+    @State private var libraryMetrics = LibraryScrollMetrics()
 
     /// Worked out once when the prompt opens, so it doesn't change while the prompt closes.
     private struct PendingDeletion {
         let shelf: Shelf
         let deletion: LibraryStore.ShelfDeletion?
     }
+
+    private struct LibraryScrollMetrics: Equatable {
+        var offsetY: CGFloat = 0
+        var maxOffsetY: CGFloat = 0
+    }
+
+    private static let edgeZone: CGFloat = 60
+    private static let maxScrollPerTick: CGFloat = 10
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -35,6 +46,9 @@ struct LibraryView: View {
                             onToggleLock: { store.setLocked(!shelf.isLocked, onShelf: shelf.id) },
                             onSelect: { selectedBook = $0 },
                             onMove: { bookId, to in store.moveBook(bookId, onShelf: shelf.id, to: to) },
+                            onMoveToShelf: { bookId, targetId, to in
+                                store.moveBook(bookId, from: shelf.id, toShelf: targetId, at: to)
+                            },
                             onRename: { store.renameShelf(shelf.id, to: $0) },
                             onMoveUp: index > 0 ? { withAnimation(.snappy) { store.moveShelf(shelf.id, to: index - 1) } } : nil,
                             onMoveDown: index < store.bookshelf.shelves.count - 1
@@ -45,8 +59,21 @@ struct LibraryView: View {
                 }
                 .padding(.vertical, 12)
             }
+            // Room to scroll the last shelf clear of the floating tab bar and the undo toast.
+            .contentMargins(.bottom, 64, for: .scrollContent)
+            .scrollPosition($libraryScroll)
+            .scrollDisabled(drag.picked != nil)
+            .onScrollGeometryChange(for: LibraryScrollMetrics.self) { geometry in
+                LibraryScrollMetrics(offsetY: geometry.contentOffset.y,
+                                     maxOffsetY: max(0, geometry.contentSize.height - geometry.visibleRect.height))
+            } action: { _, new in libraryMetrics = new }
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(ShelfDrag.space)) } action: { drag.viewport = $0 }
             .background(Theme.wood, in: RoundedRectangle(cornerRadius: 6))
         }
+        .coordinateSpace(.named(ShelfDrag.space))
+        .overlay(alignment: .topLeading) { floatingSpine }
+        .environment(drag)
+        .task(id: drag.picked?.book.id) { await autoScrollWhileDragging() }
         .overlay(alignment: .bottom) {
             UndoToast().padding(.bottom, 8)
         }
@@ -79,6 +106,47 @@ struct LibraryView: View {
         }
         .sheet(item: $selectedBook) { book in
             BookDetailView(bookId: book.id)
+        }
+    }
+
+    // MARK: Dragging between shelves
+
+    /// The picked-up book, drawn above every shelf so it can travel between them.
+    @ViewBuilder
+    private var floatingSpine: some View {
+        if let picked = drag.picked {
+            let height = BookAppearance(bookId: picked.book.id).spineHeight
+            SpineView(book: picked.book)
+                .scaleEffect(1.08, anchor: .bottom)
+                .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
+                .position(x: picked.spineStart.x + drag.translation.width,
+                          y: picked.spineStart.y - height / 2 - 6 + drag.translation.height)
+                .allowsHitTesting(false)
+                .transition(.identity)
+        }
+    }
+
+    /// Scrolls the bookcase up or down while a picked-up book is held near its top or bottom edge.
+    private func autoScrollWhileDragging() async {
+        guard drag.picked != nil else { return }
+        var offset = libraryMetrics.offsetY
+        while !Task.isCancelled, drag.picked != nil {
+            let y = drag.finger.y, top = drag.viewport.minY, bottom = drag.viewport.maxY
+            let depth: CGFloat
+            if drag.translation == .zero {
+                depth = 0
+            } else if y < top + Self.edgeZone {
+                depth = -(top + Self.edgeZone - y) / Self.edgeZone
+            } else if y > bottom - Self.edgeZone {
+                depth = (y - (bottom - Self.edgeZone)) / Self.edgeZone
+            } else {
+                depth = 0
+            }
+            if depth != 0 {
+                offset = min(max(offset + min(max(depth, -1), 1) * Self.maxScrollPerTick, 0), libraryMetrics.maxOffsetY)
+                libraryScroll.scrollTo(y: offset)
+            }
+            try? await Task.sleep(for: .milliseconds(16))
         }
     }
 

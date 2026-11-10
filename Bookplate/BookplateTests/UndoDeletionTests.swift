@@ -20,7 +20,7 @@ struct UndoDeletionTests {
         return LibrarySnapshot(
             books: ids.map(book), metas: ids.map(meta),
             shelves: [Shelf(id: "a", name: "A", bookIds: ["1", "2"]),
-                      Shelf(id: "b", name: "B", bookIds: ["3", "2"], isLocked: true),
+                      Shelf(id: "b", name: "B", bookIds: ["3"], isLocked: true),
                       Shelf(id: "c", name: "C", bookIds: ["4"])],
             lists: [BookList(id: "l", name: "L", bookIds: ["4", "2"])]
         )
@@ -42,7 +42,7 @@ struct UndoDeletionTests {
         #expect(undone.name == "Title 2")
         #expect(store.book(withId: "2") == book("2"))
         #expect(store.meta(for: "2") == meta("2"))      // status, rating, notes, tags, photos, cover
-        #expect(store.bookshelf.shelves == before.0)    // same spot on both shelves, even the locked one
+        #expect(store.bookshelf.shelves == before.0)    // same spot on its shelf
         #expect(store.lists == before.1)
         #expect(Set(store.metas.map(\.bookId)) == Set(before.2.map(\.bookId)))
         #expect(store.undoStack.isEmpty)

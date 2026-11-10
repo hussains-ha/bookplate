@@ -2,7 +2,7 @@
   {
     "id": "shelf-recently-added",
     "name": "Recently Added",
-    "bookIds": ["book-atomic-habits", "book-dune", "book-educated"]
+    "bookIds": []
   },
   {
     "id": "shelf-fiction",

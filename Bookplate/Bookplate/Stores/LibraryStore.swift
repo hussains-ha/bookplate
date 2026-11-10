@@ -29,6 +29,8 @@ final class LibraryStore {
         self.coverLookup = coverLookup ?? CoverLookupService()
         self.sync = sync
         self.localFiles = localFiles
+        // Libraries saved before books could move between shelves may list a book twice.
+        for i in self.bookshelf.keepOneCopyOfEachBook() { saveShelfBooks(at: i) }
     }
 
     /// A signed-in user's library, loaded from Supabase. Covers and note photos come from the device.
@@ -355,14 +357,14 @@ final class LibraryStore {
 
     private func restoreShelf(_ shelf: Shelf, at index: Int, movedTo: String?, movedBookIds: [String]) {
         guard !bookshelf.shelves.contains(where: { $0.id == shelf.id }) else { return }
-        // Take back the books that were moved off it, then put it back where it was.
-        if let targetIndex = bookshelf.shelves.firstIndex(where: { $0.id == movedTo }) {
-            bookshelf.shelves[targetIndex].bookIds.removeAll { movedBookIds.contains($0) }
-            saveShelfBooks(at: targetIndex)
-        }
         var restored = shelf
         restored.name = availableShelfName(shelf.name)
         restored.bookIds = shelf.bookIds.filter { book(withId: $0) != nil }
+        // A book is on one shelf only: take back any of its books that were moved elsewhere since.
+        for i in bookshelf.shelves.indices where bookshelf.shelves[i].bookIds.contains(where: restored.bookIds.contains) {
+            bookshelf.shelves[i].bookIds.removeAll { restored.bookIds.contains($0) }
+            saveShelfBooks(at: i)
+        }
         let index = min(index, bookshelf.shelves.count)
         bookshelf.shelves.insert(restored, at: index)
         for i in index..<bookshelf.shelves.count { saveShelf(at: i) }
@@ -455,6 +457,23 @@ final class LibraryStore {
             normalize(book.title) == title
                 && (author.isEmpty || book.authors.contains { normalize($0) == author })
         }
+    }
+
+    /// Moves a book from one shelf to a spot on another, as one change. Neither shelf may be locked.
+    @discardableResult
+    func moveBook(_ bookId: String, from sourceId: String, toShelf targetId: String, at index: Int) -> Bool {
+        guard sourceId != targetId else { return moveBook(bookId, onShelf: sourceId, to: index) }
+        guard let source = bookshelf.shelves.firstIndex(where: { $0.id == sourceId }),
+              let target = bookshelf.shelves.firstIndex(where: { $0.id == targetId }),
+              !bookshelf.shelves[source].isLocked, !bookshelf.shelves[target].isLocked,
+              bookshelf.shelves[source].bookIds.contains(bookId) else { return false }
+        bookshelf.shelves[source].bookIds.removeAll { $0 == bookId }
+        bookshelf.shelves[target].bookIds.removeAll { $0 == bookId }
+        let to = min(max(index, 0), bookshelf.shelves[target].bookIds.count)
+        bookshelf.shelves[target].bookIds.insert(bookId, at: to)
+        saveShelfBooks(at: source)
+        saveShelfBooks(at: target)
+        return true
     }
 
     /// Moves a book to a new position on the same shelf. `index` is its final position, clamped to the shelf.

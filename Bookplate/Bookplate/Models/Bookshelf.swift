@@ -40,3 +40,19 @@ extension Bookshelf {
         return try JSONDecoder().decode([Bookshelf].self, from: Data(contentsOf: url))
     }
 }
+
+extension Bookshelf {
+    /// Enforces one copy of each book per bookcase: a book listed on several shelves stays only on the first.
+    /// Returns the indices of the shelves that changed.
+    @discardableResult
+    mutating func keepOneCopyOfEachBook() -> [Int] {
+        var seen: Set<String> = []
+        var changed: [Int] = []
+        for i in shelves.indices {
+            let before = shelves[i].bookIds
+            shelves[i].bookIds = before.filter { seen.insert($0).inserted }
+            if shelves[i].bookIds != before { changed.append(i) }
+        }
+        return changed
+    }
+}
