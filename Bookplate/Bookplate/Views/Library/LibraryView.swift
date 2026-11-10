@@ -182,6 +182,7 @@ struct LibraryView: View {
                         sort: sort,
                         onSort: { new in withAnimation(.snappy) { shelfSorts[shelf.id] = new == .custom ? nil : new } }
                     )
+                    .id(shelf.id)
                 }
             }
             .padding(.vertical, 12)
@@ -298,6 +299,40 @@ struct LibraryView: View {
         }
     }
 
+    /// Jumps to a shelf. Hidden with one shelf or none.
+    @ViewBuilder
+    private var shelvesMenu: some View {
+        let jumps = store.shelfJumps
+        if !jumps.isEmpty {
+            Text("·").foregroundStyle(Theme.mutedText)
+            Menu {
+                ForEach(jumps) { jump in
+                    Button("\(jump.name) (\(jump.count))") { jumpToShelf(jump.id) }
+                }
+            } label: {
+                HStack(spacing: 2) {
+                    Text("Shelves")
+                    Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                }
+                .fontWeight(.semibold)
+                .foregroundStyle(Theme.brown)
+            }
+            .accessibilityLabel("Jump to shelf")
+        }
+    }
+
+    private func jumpToShelf(_ shelfId: String) {
+        // The shelf may be hidden by search or the filter; show everything first.
+        let wasNarrowed = isNarrowed
+        query = ""
+        filter = .all
+        endEditing()
+        Task { @MainActor in
+            if wasNarrowed { await Task.yield() }
+            withAnimation(.snappy) { libraryScroll.scrollTo(id: shelfId, anchor: .top) }
+        }
+    }
+
     private var zoomControl: some View {
         HStack(spacing: 0) {
             Button { withAnimation(.snappy) { zoom = zoom.zoomedOut() } } label: {
@@ -326,9 +361,13 @@ struct LibraryView: View {
                 Text("Bookplate")
                     .font(Theme.title(32))
                     .foregroundStyle(Theme.brown)
-                Text("\(store.bookshelf.name) · \(store.books.count) \(store.books.count == 1 ? "book" : "books")")
-                    .font(.footnote)
-                    .foregroundStyle(Theme.mutedText)
+                HStack(spacing: 4) {
+                    Text("\(store.bookshelf.name) · \(store.books.count) \(store.books.count == 1 ? "book" : "books")")
+                        .foregroundStyle(Theme.mutedText)
+                    if !store.isLibraryEmpty { shelvesMenu }
+                }
+                .font(.footnote)
+                .lineLimit(1)
             }
             Spacer()
             if !store.isLibraryEmpty { zoomControl }
