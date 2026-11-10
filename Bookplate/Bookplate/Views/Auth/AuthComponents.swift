@@ -75,13 +75,14 @@ extension View {
 }
 
 extension View {
-    /// Email keyboard and no autocapitalization; these modifiers are iOS-only.
+    /// Email keyboard, no autocapitalization or autocorrection; these modifiers are iOS-only.
     @ViewBuilder
     func emailFieldStyle() -> some View {
         #if os(iOS)
         self
             .keyboardType(.emailAddress)
             .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
         #else
         self
         #endif
