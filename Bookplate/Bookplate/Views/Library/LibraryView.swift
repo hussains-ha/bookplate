@@ -20,20 +20,29 @@ struct LibraryView: View {
 
             ScrollView {
                 VStack(spacing: 14) {
-                    ForEach(store.bookshelf.shelves) { shelf in
+                    ForEach(Array(store.bookshelf.shelves.enumerated()), id: \.element.id) { index, shelf in
                         ShelfView(
                             shelf: shelf,
                             books: store.books(on: shelf, matching: query),
                             isReorderEnabled: query.isEmpty,
                             onToggleLock: { store.setLocked(!shelf.isLocked, onShelf: shelf.id) },
                             onSelect: { selectedBook = $0 },
-                            onMove: { bookId, index in store.moveBook(bookId, onShelf: shelf.id, to: index) }
+                            onMove: { bookId, to in store.moveBook(bookId, onShelf: shelf.id, to: to) },
+                            onRename: { store.renameShelf(shelf.id, to: $0) },
+                            onMoveUp: index > 0 ? { withAnimation(.snappy) { store.moveShelf(shelf.id, to: index - 1) } } : nil,
+                            onMoveDown: index < store.bookshelf.shelves.count - 1
+                                ? { withAnimation(.snappy) { store.moveShelf(shelf.id, to: index + 1) } } : nil
                         )
                     }
                 }
                 .padding(.vertical, 12)
             }
             .background(Theme.wood, in: RoundedRectangle(cornerRadius: 6))
+        }
+        // Tapping a blank spot ends editing (e.g. cancels a shelf rename). On a background layer, so taps
+        // inside text fields, spines and plates never reach it.
+        .background {
+            Color.clear.contentShape(Rectangle()).onTapGesture(perform: endEditing)
         }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -81,6 +90,14 @@ struct LibraryView: View {
         }
         .padding(.top, 8)
     }
+}
+
+/// Ends text editing anywhere on screen.
+@MainActor
+func endEditing() {
+    #if os(iOS)
+    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    #endif
 }
 
 #Preview {
