@@ -122,4 +122,23 @@ struct UndoDeletionTests {
         #expect(Set(after.books.map(\.id)) == Set(before.books.map(\.id)))
         #expect(after.metas.first { $0.bookId == "2" }?.notes == "Notes 2")
     }
+
+    @Test func bookWithoutDetailsComesBackWithDefaultDetails() {
+        let store = LibraryStore(books: [book("x")], metas: [],
+                                 bookshelf: Bookshelf(id: "bs", name: "BS", shelves: [Shelf(id: "a", name: "A", bookIds: ["x"])],
+                                                      appearance: .classic),
+                                 coverLookup: NoCoverLookup())
+        store.removeBook("x")
+        store.undoLastDeletion()
+        #expect(store.meta(for: "x")?.status == BookMeta.Status.want)
+        #expect(store.bookshelf.shelves[0].bookIds == ["x"])
+    }
+
+    @Test func deletionsRememberWhenTheyHappened() {
+        let store = store()
+        let before = Date()
+        store.removeBook("1")
+        #expect(store.undoStack.last.map { $0.date >= before } == true)
+    }
 }
+

@@ -39,13 +39,22 @@ struct UndoToast: View {
             }
         }
         .animation(.snappy, value: deletion?.id)
-        .onChange(of: store.undoStack.last?.id) { _, newId in shownId = newId }
+        .onChange(of: store.undoStack.last?.id) { _, _ in
+            // After an undo, the next older deletion is offered only if it just happened too;
+            // an old one coming back would be a surprise (and easy to undo by a reflex tap).
+            guard let last = store.undoStack.last else { return shownId = nil }
+            shownId = Date().timeIntervalSince(last.date) < Self.duration.seconds ? last.id : nil
+        }
         .task(id: shownId) {
             guard shownId != nil else { return }
             try? await Task.sleep(for: Self.duration)
             if !Task.isCancelled { shownId = nil }
         }
     }
+}
+
+private extension Duration {
+    var seconds: Double { Double(components.seconds) + Double(components.attoseconds) / 1e18 }
 }
 
 #Preview {

@@ -325,6 +325,7 @@ final class LibraryStore {
 
         let id = UUID()
         let kind: Kind
+        var date = Date()
 
         var name: String {
             switch kind {
@@ -383,10 +384,12 @@ final class LibraryStore {
         guard self.book(withId: book.id) == nil else { return }
         books.append(book)
         save(.saveBook(book))
-        if let meta {
-            metas.append(meta)
-            save(.saveMeta(meta))
-        }
+        // Always save details with the book: a restore is then recognized as added on this device after a relaunch.
+        let meta = meta ?? BookMeta(bookId: book.id, status: BookMeta.Status.want, rating: nil, notes: nil,
+                                    notePhotos: [], tags: [], customCover: nil,
+                                    addedDate: Date(), startedDate: nil, finishedDate: nil)
+        metas.append(meta)
+        save(.saveMeta(meta))
         var placed = false
         for placement in shelves {
             guard let i = bookshelf.shelves.firstIndex(where: { $0.id == placement.id }) else { continue }
@@ -394,8 +397,9 @@ final class LibraryStore {
             saveShelfBooks(at: i)
             placed = true
         }
-        // Its shelves are gone: put it on the default shelf so it's still visible.
-        if !placed, !shelves.isEmpty, let i = bookshelf.shelves.firstIndex(where: { $0.id == defaultShelfId }) {
+        // Its shelves are gone: put it on the default shelf (or, if every shelf is locked, the first) so it's still visible.
+        if !placed, !shelves.isEmpty,
+           let i = bookshelf.shelves.firstIndex(where: { $0.id == defaultShelfId }) ?? bookshelf.shelves.indices.first {
             bookshelf.shelves[i].bookIds.insert(book.id, at: 0)
             saveShelfBooks(at: i)
         }
