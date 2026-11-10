@@ -5,6 +5,8 @@ struct LibraryView: View {
 
     @State private var query = ""
     @State private var filter: LibraryFilter = .all
+    /// Per-shelf display order for this session; missing means Custom.
+    @State private var shelfSorts: [String: ShelfSort] = [:]
     @State private var showingAddBook = false
     @State private var showingAddShelf = false
     @State private var selectedBook: Book?
@@ -143,10 +145,11 @@ struct LibraryView: View {
                     let shelf = visible.shelf
                     // The shelf's place in the whole bookcase, not in the (possibly filtered) list on screen.
                     let index = store.bookshelf.shelves.firstIndex { $0.id == shelf.id } ?? 0
+                    let sort = shelfSorts[shelf.id] ?? .custom
                     ShelfView(
                         shelf: shelf,
-                        books: visible.books,
-                        isReorderEnabled: !isNarrowed,
+                        books: sort.apply(to: visible.books) { store.meta(for: $0.id)?.rating },
+                        isReorderEnabled: !isNarrowed && sort == .custom,
                         onToggleLock: { store.setLocked(!shelf.isLocked, onShelf: shelf.id) },
                         onSelect: { selectedBook = $0 },
                         onMove: { bookId, to in store.moveBook(bookId, onShelf: shelf.id, to: to) },
@@ -157,7 +160,9 @@ struct LibraryView: View {
                         onMoveUp: index > 0 ? { withAnimation(.snappy) { store.moveShelf(shelf.id, to: index - 1) } } : nil,
                         onMoveDown: index < store.bookshelf.shelves.count - 1
                             ? { withAnimation(.snappy) { store.moveShelf(shelf.id, to: index + 1) } } : nil,
-                        onDelete: store.bookshelf.shelves.count > 1 ? { shelfToDelete = PendingDeletion(shelf: shelf, deletion: store.shelfDeletion(shelf.id)) } : nil
+                        onDelete: store.bookshelf.shelves.count > 1 ? { shelfToDelete = PendingDeletion(shelf: shelf, deletion: store.shelfDeletion(shelf.id)) } : nil,
+                        sort: sort,
+                        onSort: { new in withAnimation(.snappy) { shelfSorts[shelf.id] = new == .custom ? nil : new } }
                     )
                 }
             }

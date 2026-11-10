@@ -19,6 +19,9 @@ struct ShelfView: View {
     var onMoveDown: (() -> Void)?
     /// Nil for the last shelf, which can't be deleted.
     var onDelete: (() -> Void)?
+    /// How the books are shown; anything but Custom is display only (pass `isReorderEnabled: false`).
+    var sort: ShelfSort = .custom
+    var onSort: (ShelfSort) -> Void = { _ in }
 
     @Environment(ShelfDrag.self) private var drag
 
@@ -114,6 +117,7 @@ struct ShelfView: View {
                         .layoutPriority(1)
                 }
                 Spacer()
+                sortMenu
                 Text("\(books.count)")
                     .font(.system(size: 9))
                     .foregroundStyle(Theme.label.opacity(0.8))
@@ -150,6 +154,25 @@ struct ShelfView: View {
     }
 
     // MARK: Name plate
+
+    private var sortMenu: some View {
+        Menu {
+            Picker("Sort", selection: Binding(get: { sort }, set: onSort)) {
+                ForEach(ShelfSort.allCases) { Text($0.title).tag($0) }
+            }
+        } label: {
+            HStack(spacing: 2) {
+                if sort != .custom { Text(sort.title) }
+                Image(systemName: "arrow.up.arrow.down")
+            }
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(Theme.label.opacity(sort == .custom ? 0.55 : 1))
+            .frame(minWidth: 24, minHeight: 18)
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel("Sort \(shelf.name)")
+        .accessibilityValue(sort.title)
+    }
 
     @ViewBuilder
     private var nameLabel: some View {
