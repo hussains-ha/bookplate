@@ -436,6 +436,25 @@ final class LibraryStore {
         }
     }
 
+    /// A shelf on screen and the books it shows.
+    struct VisibleShelf: Equatable {
+        let shelf: Shelf
+        let books: [Book]
+    }
+
+    /// True when the library has no books at all (its shelves may still exist).
+    var isLibraryEmpty: Bool { books.isEmpty }
+
+    /// True when `query` has something to search for (not just spaces).
+    static func isSearching(_ query: String) -> Bool { !normalize(query).isEmpty }
+
+    /// The shelves to draw, in order. With no search every shelf shows, empty ones included;
+    /// while searching, only shelves with at least one matching book show.
+    func visibleShelves(matching query: String = "") -> [VisibleShelf] {
+        let all = bookshelf.shelves.map { VisibleShelf(shelf: $0, books: books(on: $0, matching: query)) }
+        return Self.isSearching(query) ? all.filter { !$0.books.isEmpty } : all
+    }
+
     struct DuplicateCheck: Equatable {
         var match: Book?
         /// True when the server couldn't be asked, so only this device's books were checked.
