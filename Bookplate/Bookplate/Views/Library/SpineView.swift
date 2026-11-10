@@ -26,7 +26,7 @@ struct SpineView: View {
             if let author = book.authors.first, !author.isEmpty {
                 Text(author)
                     .font(.system(size: 6.5, weight: .medium))
-                    .opacity(0.75)
+                    .opacity(0.85)
             }
         }
         .foregroundStyle(appearance.textColor.opacity(0.92))
