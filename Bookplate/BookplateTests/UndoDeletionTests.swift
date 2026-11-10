@@ -72,6 +72,14 @@ struct UndoDeletionTests {
         #expect(store.bookshelf.shelves[0].bookIds.count == 3)   // Later, 1, 2
     }
 
+    @Test func restoredShelfGetsANewNameIfItsNameWasTaken() {
+        let store = store()
+        store.deleteShelf("c")
+        store.addShelf(named: "c")
+        store.undoLastDeletion()
+        #expect(store.bookshelf.shelves.map(\.name) == ["A", "B", "C 2", "c"])
+    }
+
     @Test func undoesInReverseOrder() {
         let store = store()
         store.removeBook("1")

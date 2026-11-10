@@ -360,11 +360,23 @@ final class LibraryStore {
             saveShelfBooks(at: targetIndex)
         }
         var restored = shelf
+        restored.name = availableShelfName(shelf.name)
         restored.bookIds = shelf.bookIds.filter { book(withId: $0) != nil }
         let index = min(index, bookshelf.shelves.count)
         bookshelf.shelves.insert(restored, at: index)
         for i in index..<bookshelf.shelves.count { saveShelf(at: i) }
         saveShelfBooks(at: index)
+    }
+
+    /// `name`, or "name 2", "name 3"… if another shelf took the name since. Stays within the length cap.
+    private func availableShelfName(_ name: String) -> String {
+        guard shelfNameProblem(name) == .duplicate else { return name }
+        for n in 2... {
+            let suffix = " \(n)"
+            let candidate = String(name.prefix(Self.maxShelfNameLength - suffix.count)) + suffix
+            if shelfNameProblem(candidate) == nil { return candidate }
+        }
+        return name
     }
 
     private func restoreBook(_ book: Book, meta: BookMeta?, shelves: [Placement], lists placements: [Placement]) {
