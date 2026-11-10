@@ -424,15 +424,21 @@ final class LibraryStore {
         saveLocalFiles()
     }
 
-    /// Books on a shelf in shelf order, optionally filtered by a title/author query.
-    func books(on shelf: Shelf, matching query: String = "") -> [Book] {
+    /// Books on a shelf in shelf order, narrowed by a search query and a filter.
+    /// The query matches title, author, tag, or the shelf's own name (which keeps every book on it).
+    func books(on shelf: Shelf, matching query: String = "", filter: LibraryFilter = .all) -> [Book] {
         let byId = Dictionary(books.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let metaById = Dictionary(metas.map { ($0.bookId, $0) }, uniquingKeysWith: { first, _ in first })
         let onShelf = shelf.bookIds.compactMap { byId[$0] }
         let needle = Self.normalize(query)
-        guard !needle.isEmpty else { return onShelf }
+        let shelfMatches = !needle.isEmpty && Self.normalize(shelf.name).contains(needle)
         return onShelf.filter { book in
-            Self.normalize(book.title).contains(needle)
+            let meta = metaById[book.id]
+            guard filter.matches(meta) else { return false }
+            guard !needle.isEmpty, !shelfMatches else { return true }
+            return Self.normalize(book.title).contains(needle)
                 || book.authors.contains { Self.normalize($0).contains(needle) }
+                || (meta?.tags ?? []).contains { Self.normalize($0).contains(needle) }
         }
     }
 
@@ -448,11 +454,36 @@ final class LibraryStore {
     /// True when `query` has something to search for (not just spaces).
     static func isSearching(_ query: String) -> Bool { !normalize(query).isEmpty }
 
-    /// The shelves to draw, in order. With no search every shelf shows, empty ones included;
-    /// while searching, only shelves with at least one matching book show.
-    func visibleShelves(matching query: String = "") -> [VisibleShelf] {
-        let all = bookshelf.shelves.map { VisibleShelf(shelf: $0, books: books(on: $0, matching: query)) }
-        return Self.isSearching(query) ? all.filter { !$0.books.isEmpty } : all
+    /// The shelves to draw, in order. With no search or filter every shelf shows, empty ones included;
+    /// otherwise only shelves with at least one matching book show.
+    func visibleShelves(matching query: String = "", filter: LibraryFilter = .all) -> [VisibleShelf] {
+        let all = bookshelf.shelves.map { VisibleShelf(shelf: $0, books: books(on: $0, matching: query, filter: filter)) }
+        return Self.isSearching(query) || filter != .all ? all.filter { !$0.books.isEmpty } : all
+    }
+
+    // MARK: Filter menu
+
+    /// Every tag on a book in the library, once each ignoring case (first spelling wins), sorted.
+    var allTags: [String] {
+        let bookIds = Set(books.map(\.id))
+        var seen = Set<String>()
+        var tags: [String] = []
+        for tag in metas.filter({ bookIds.contains($0.bookId) }).flatMap(\.tags) {
+            if seen.insert(tag.lowercased()).inserted { tags.append(tag) }
+        }
+        return tags.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
+    /// How many books in the library the filter matches.
+    func count(for filter: LibraryFilter) -> Int {
+        let metaById = Dictionary(metas.map { ($0.bookId, $0) }, uniquingKeysWith: { first, _ in first })
+        return books.count { filter.matches(metaById[$0.id]) }
+    }
+
+    /// The filter to keep using: a tag no book has any more falls back to All.
+    func resolved(_ filter: LibraryFilter) -> LibraryFilter {
+        guard case .tag(let tag) = filter else { return filter }
+        return allTags.contains { $0.caseInsensitiveCompare(tag) == .orderedSame } ? filter : .all
     }
 
     struct DuplicateCheck: Equatable {

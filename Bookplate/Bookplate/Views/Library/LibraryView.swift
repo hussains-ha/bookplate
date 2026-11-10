@@ -4,6 +4,7 @@ struct LibraryView: View {
     @Environment(LibraryStore.self) private var store
 
     @State private var query = ""
+    @State private var filter: LibraryFilter = .all
     @State private var showingAddBook = false
     @State private var showingAddShelf = false
     @State private var selectedBook: Book?
@@ -35,11 +36,12 @@ struct LibraryView: View {
             } else {
                 HStack {
                     Image(systemName: "magnifyingglass").foregroundStyle(Theme.mutedText)
-                    TextField("Title or author", text: $query)
+                    TextField("Title, author, or tag", text: $query)
+                    filterMenu
                 }
                 .authFieldStyle()
 
-                if LibraryStore.isSearching(query), visibleShelves.isEmpty {
+                if isNarrowed, visibleShelves.isEmpty {
                     noMatches
                 } else {
                     bookcase
@@ -85,7 +87,44 @@ struct LibraryView: View {
         }
     }
 
-    private var visibleShelves: [LibraryStore.VisibleShelf] { store.visibleShelves(matching: query) }
+    private var visibleShelves: [LibraryStore.VisibleShelf] { store.visibleShelves(matching: query, filter: filter) }
+
+    /// True while search or the filter hides some books, so shelf order on screen isn't the real order.
+    private var isNarrowed: Bool { LibraryStore.isSearching(query) || filter != .all }
+
+    private var filterMenu: some View {
+        Menu {
+            Picker("Show", selection: $filter) {
+                filterRow(.all)
+                Section {
+                    ForEach(LibraryFilter.statuses, id: \.self) { filterRow(.status($0)) }
+                    filterRow(.favorites)
+                }
+                let tags = store.allTags
+                if !tags.isEmpty {
+                    Section("Tags") {
+                        ForEach(tags, id: \.self) { filterRow(.tag($0)) }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text(filter.title).lineLimit(1)
+                Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(filter == .all ? Theme.mutedText : Theme.brown)
+            .frame(maxWidth: 140, alignment: .trailing)
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        .accessibilityLabel("Filter: \(filter.title)")
+        // A tag that no book has any more can't stay selected.
+        .onChange(of: store.allTags) { filter = store.resolved(filter) }
+    }
+
+    private func filterRow(_ option: LibraryFilter) -> some View {
+        Text("\(option.title) (\(store.count(for: option)))").tag(option)
+    }
 
     private var bookcase: some View {
         ScrollView {
@@ -97,7 +136,7 @@ struct LibraryView: View {
                     ShelfView(
                         shelf: shelf,
                         books: visible.books,
-                        isReorderEnabled: !LibraryStore.isSearching(query),
+                        isReorderEnabled: !isNarrowed,
                         onToggleLock: { store.setLocked(!shelf.isLocked, onShelf: shelf.id) },
                         onSelect: { selectedBook = $0 },
                         onMove: { bookId, to in store.moveBook(bookId, onShelf: shelf.id, to: to) },
@@ -152,12 +191,22 @@ struct LibraryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    private var noMatchesMessage: String {
+        let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let quoted = "\u{2018}\(search)\u{2019}"
+        switch (LibraryStore.isSearching(query), filter) {
+        case (true, .all): return "No matches for \(quoted)."
+        case (true, _): return "No matches for \(quoted) in \(filter.title)."
+        default: return "No books in \(filter.title)."
+        }
+    }
+
     private var noMatches: some View {
         VStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 36))
                 .foregroundStyle(Theme.brown.opacity(0.5))
-            Text("No matches for \u{2018}\(query.trimmingCharacters(in: .whitespacesAndNewlines))\u{2019}.")
+            Text(noMatchesMessage)
                 .font(.headline)
                 .foregroundStyle(Theme.brown)
                 .multilineTextAlignment(.center)
