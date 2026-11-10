@@ -3,6 +3,8 @@ import Foundation
 /// Saves picked images (custom covers, note photos) and returns a URL the app can show.
 protocol ImageStorage {
     func save(_ data: Data, fileExtension: String) throws -> URL
+    /// Deletes an image this storage saved. Anything else (e.g. a web URL) is left alone.
+    func delete(_ url: URL)
 }
 
 /// Keeps images as files in the app's documents folder.
@@ -25,5 +27,12 @@ struct LocalImageStorage: ImageStorage {
         let url = folder.appendingPathComponent("\(UUID().uuidString.lowercased()).\(fileExtension)")
         try data.write(to: url, options: .atomic)
         return url
+    }
+
+    func delete(_ url: URL) {
+        guard url.isFileURL, let folder = try? Self.folder(),
+              url.deletingLastPathComponent().standardizedFileURL == folder.standardizedFileURL
+        else { return }
+        try? FileManager.default.removeItem(at: url)
     }
 }

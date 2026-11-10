@@ -283,7 +283,7 @@ struct BookDetailView: View {
         Button("Choose from Library", systemImage: "photo.on.rectangle") { showingCoverLibrary = true }
         if hasCustomCover {
             Button("Remove Custom Cover", systemImage: "trash", role: .destructive) {
-                store.setCustomCover(nil, for: bookId)
+                replaceCustomCover(with: nil)
             }
         }
     }
@@ -315,7 +315,15 @@ struct BookDetailView: View {
         guard let jpeg = ImageCompressor.jpeg(from: data),
               let url = try? imageStorage.save(jpeg, fileExtension: "jpg")
         else { showingCoverError = true; return }
+        replaceCustomCover(with: url)
+    }
+
+    /// Sets or clears the custom cover and deletes the replaced photo's file.
+    /// (A removed book keeps its cover file, so undo can bring it back.)
+    private func replaceCustomCover(with url: URL?) {
+        let old = store.meta(for: bookId)?.customCover
         store.setCustomCover(url, for: bookId)
+        if let old, old != url { imageStorage.delete(old) }
     }
 
     private func addPhotos(from items: [PhotosPickerItem]) async {
