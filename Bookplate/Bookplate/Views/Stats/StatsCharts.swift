@@ -47,7 +47,7 @@ struct MonthlyChart: View {
                         }
                     }
                     .accessibilityLabel(Self.monthName(item.month))
-                    .accessibilityValue("\(item.count) books")
+                    .accessibilityValue(item.count == 1 ? "1 book" : "\(item.count) books")
             }
             .chartYAxis(.hidden)
             .chartYScale(domain: 0...max(insights.finishedPerMonth.map(\.count).max() ?? 0, 1) + 1)
