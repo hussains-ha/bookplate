@@ -10,7 +10,7 @@ struct MainTabView: View {
                 .tabItem { Label("Library", systemImage: "books.vertical") }
             ListsView()
                 .tabItem { Label("Lists", systemImage: "list.bullet") }
-            PlaceholderTab(title: "Stats")
+            StatsView()
                 .tabItem { Label("Stats", systemImage: "chart.bar") }
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
@@ -54,18 +54,6 @@ private struct SyncBanner: View {
         .padding(.horizontal, 12)
         .transition(.move(edge: .top).combined(with: .opacity))
         .accessibilityElement(children: .combine)
-    }
-}
-
-private struct PlaceholderTab: View {
-    let title: String
-
-    var body: some View {
-        Text(title)
-            .font(Theme.title(28))
-            .foregroundStyle(Theme.brown)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Theme.background.ignoresSafeArea())
     }
 }
 
