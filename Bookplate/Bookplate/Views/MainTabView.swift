@@ -7,6 +7,7 @@ struct MainTabView: View {
     var body: some View {
         TabView {
             LibraryView()
+                .environment(\.palette, .of(store.bookshelf.appearance))
                 .tabItem { Label("Library", systemImage: "books.vertical") }
             ListsView()
                 .tabItem { Label("Lists", systemImage: "list.bullet") }

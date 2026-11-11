@@ -27,6 +27,7 @@ struct ShelfView: View {
 
     @Environment(ShelfDrag.self) private var drag
     @Environment(\.bookcaseScale) private var scale
+    @Environment(\.palette) private var palette
 
     static let spacing: CGFloat = 2
     private static let rowPadding: CGFloat = 12
@@ -93,7 +94,7 @@ struct ShelfView: View {
                 if books.isEmpty, incomingIndex == nil {
                     Text("No books on this shelf yet.")
                         .font(.footnote.italic())
-                        .foregroundStyle(Theme.label.opacity(0.6))
+                        .foregroundStyle(palette.shelfText.opacity(0.6))
                         .allowsHitTesting(false)
                 }
             }
@@ -114,7 +115,7 @@ struct ShelfView: View {
                 if let renameProblem {
                     Text(renameProblem.message)
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Theme.label)
+                        .foregroundStyle(palette.shelfText)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                         .layoutPriority(1)
@@ -123,11 +124,11 @@ struct ShelfView: View {
                 sortMenu
                 Text("\(books.count)")
                     .font(.system(size: 9))
-                    .foregroundStyle(Theme.label.opacity(0.8))
+                    .foregroundStyle(palette.shelfText.opacity(0.8))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 3)
-            .background(Theme.woodShelf)
+            .background(palette.shelf)
         }
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(ShelfDrag.space)) } action: { frame = $0 }
         .onChange(of: layout, initial: true) { _, new in drag.shelves[shelf.id] = new }
@@ -169,7 +170,7 @@ struct ShelfView: View {
                 Image(systemName: "arrow.up.arrow.down")
             }
             .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(Theme.label.opacity(sort == .custom ? 0.55 : 1))
+            .foregroundStyle(palette.shelfText.opacity(sort == .custom ? 0.55 : 1))
             .frame(minWidth: 24, minHeight: 18)
             .contentShape(Rectangle())
         }
@@ -210,11 +211,11 @@ struct ShelfView: View {
                 }
             }
             .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(Theme.brown)
+            .foregroundStyle(palette.plateText)
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
             .frame(minWidth: 90, maxWidth: 220)
-            .background(Theme.label, in: RoundedRectangle(cornerRadius: 1))
+            .background(palette.plate, in: RoundedRectangle(cornerRadius: 1))
             .accessibilityLabel("Shelf name")
             .accessibilityAction(.escape, cancelRename)
         } else if !isEditable {
@@ -223,10 +224,10 @@ struct ShelfView: View {
                 Text(shelf.name)
             }
             .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(Theme.brown)
+            .foregroundStyle(palette.plateText)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
-            .background(Theme.label.opacity(0.8), in: RoundedRectangle(cornerRadius: 1))
+            .background(palette.plate.opacity(0.8), in: RoundedRectangle(cornerRadius: 1))
             .accessibilityElement(children: .combine)
             .accessibilityHint("Smart shelf. Fills itself from each book's status and rating.")
         } else {
@@ -237,10 +238,10 @@ struct ShelfView: View {
                 Text(shelf.name)
             }
             .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(Theme.brown)
+            .foregroundStyle(palette.plateText)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
-            .background(Theme.label, in: RoundedRectangle(cornerRadius: 1))
+            .background(palette.plate, in: RoundedRectangle(cornerRadius: 1))
             .contentShape(Rectangle())
             .onTapGesture(perform: startRename)
             .accessibilityAddTraits(.isButton)
