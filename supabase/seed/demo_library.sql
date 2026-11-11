@@ -1,5 +1,6 @@
 -- Demo library (#116): fills ONE existing account with a realistic library for demos.
--- Re-runnable: it first deletes that account's books, shelves, lists and settings, then reseeds them.
+-- Re-runnable: it first deletes that account's libraries (and everything in them, including who
+-- they're shared with), books, shelves, lists and settings, then reseeds one "My Library".
 -- Nothing else (other users, the account itself) is touched.
 --
 -- How to run: replace DEMO_EMAIL below with the demo account's email (don't commit it), then run
@@ -10,6 +11,7 @@ do $$
 declare
     v_email constant text := 'DEMO_EMAIL';
     v_uid uuid;
+    v_library uuid;
 begin
     select id into v_uid from auth.users where email = v_email;
     if v_uid is null then
@@ -21,6 +23,13 @@ begin
     delete from public.shelves where user_id = v_uid;
     delete from public.lists where user_id = v_uid;
     delete from public.library_settings where user_id = v_uid;
+    -- Libraries (#123): deleting them also removes their members; libraries shared WITH this
+    -- account are left alone (re-run demo_friend.sql to reset Maya's).
+    delete from public.libraries where owner_id = v_uid;
+    insert into public.libraries (owner_id, name, owner_name, position)
+    select v_uid, 'My Library', nullif(trim(raw_user_meta_data ->> 'name'), ''), 0
+    from auth.users where id = v_uid
+    returning id into v_library;
 
     create temp table demo_shelves (n int, id text, name text, locked boolean) on commit drop;
     insert into demo_shelves values

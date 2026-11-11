@@ -40,7 +40,8 @@ struct LibraryInfo: Identifiable, Equatable, Hashable, Sendable {
     static func nameProblem(_ name: String, among libraries: [LibraryInfo], excluding id: UUID? = nil) -> NameProblem? {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         if name.isEmpty { return .blank }
-        if name.count > maxNameLength { return .tooLong }
+        // Counted like the database's length() (code points), so the server never rejects it.
+        if name.unicodeScalars.count > maxNameLength { return .tooLong }
         let taken = libraries.contains {
             $0.isOwned && $0.id != id
                 && $0.name.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(name) == .orderedSame
