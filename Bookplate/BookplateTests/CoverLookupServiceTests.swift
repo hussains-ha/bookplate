@@ -125,4 +125,37 @@ struct CoverLookupServiceTests {
             try await CoverLookupService(client: client).lookup(title: "Dune", author: nil, isbn: nil)
         }
     }
+
+    // MARK: Open Library search fallback
+
+    private let openLibraryHit = #"{"docs":[{"cover_i":14627509,"number_of_pages_median":310}]}"#
+
+    @Test func fallsBackToOpenLibrarySearchWhenGoogleIsOverQuota() async throws {
+        let client = MockHTTPClient { request in
+            request.url?.host == "www.googleapis.com" ? (429, Data()) : (200, Data(self.openLibraryHit.utf8))
+        }
+        let result = try await CoverLookupService(client: client).lookup(title: "The Hobbit", author: "J.R.R. Tolkien", isbn: nil)
+        #expect(result?.coverURL?.absoluteString == "https://covers.openlibrary.org/b/id/14627509-L.jpg")
+        #expect(result?.pageCount == 310)
+    }
+
+    @Test func googleFailureStillThrowsWhenOpenLibraryHasNothing() async throws {
+        let client = MockHTTPClient { request in
+            request.url?.host == "www.googleapis.com" ? (429, Data()) : (200, Data(#"{"docs":[]}"#.utf8))
+        }
+        await #expect(throws: (any Error).self) {
+            _ = try await CoverLookupService(client: client).lookup(title: "Nothing", author: nil, isbn: nil)
+        }
+    }
+
+    @Test func openLibrarySearchFillsInWhenGoogleHasNoCover() async throws {
+        let client = MockHTTPClient { request in
+            request.url?.host == "www.googleapis.com"
+                ? (200, Data(#"{"items":[{"volumeInfo":{"pageCount":300}}]}"#.utf8))
+                : (200, Data(self.openLibraryHit.utf8))
+        }
+        let result = try await CoverLookupService(client: client).lookup(title: "The Hobbit", author: nil, isbn: nil)
+        #expect(result?.coverURL?.host == "covers.openlibrary.org")
+        #expect(result?.pageCount == 300)
+    }
 }
