@@ -27,9 +27,9 @@ struct BookplateDesign: Codable, Equatable, Sendable {
 
         var scale: Double {
             switch self {
-            case .small: 0.85
+            case .small: 0.8
             case .medium: 1
-            case .large: 1.2
+            case .large: 1.4
             }
         }
     }
