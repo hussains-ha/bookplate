@@ -8,6 +8,8 @@ protocol LibraryDirectory {
     func rename(_ id: UUID, to name: String) async throws(BookServiceError)
     /// Also deletes everything in it (books, shelves, lists).
     func delete(_ id: UUID) async throws(BookServiceError)
+    /// Gives up your access to a library shared with you.
+    func leave(_ id: UUID) async throws(BookServiceError)
 }
 
 /// A `libraries` row.
@@ -79,6 +81,12 @@ struct SupabaseLibraryDirectory: LibraryDirectory {
         }
     }
 
+    func leave(_ id: UUID) async throws(BookServiceError) {
+        try await run {
+            try await client.from("library_members").delete().eq("library_id", value: id).eq("user_id", value: userId).execute()
+        }
+    }
+
     private func run<T>(_ request: () async throws -> T) async throws(BookServiceError) -> T {
         try await BookService.requireSession(client)
         guard client.auth.currentUser?.id == userId else { throw .notSignedIn }
@@ -121,5 +129,10 @@ final class InMemoryLibraryDirectory: LibraryDirectory {
     func delete(_ id: UUID) async throws(BookServiceError) {
         if let error { throw error }
         items.removeAll { $0.id == id }
+    }
+
+    func leave(_ id: UUID) async throws(BookServiceError) {
+        if let error { throw error }
+        items.removeAll { $0.id == id && $0.ownerId != userId }
     }
 }

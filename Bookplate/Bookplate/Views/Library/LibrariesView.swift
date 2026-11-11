@@ -43,7 +43,11 @@ struct LibrariesView: View {
                 }
                 if !session.shared.isEmpty {
                     Section("Shared with you") {
-                        ForEach(session.shared) { row($0) }
+                        ForEach(session.shared) { library in
+                            row(library)
+                                .contextMenu { leaveAction(library) }
+                                .swipeActions { leaveAction(library) }
+                        }
                     }
                 }
             }
@@ -132,6 +136,16 @@ struct LibrariesView: View {
         }
         if session.canDelete(library.id) {
             Button("Delete", systemImage: "trash", role: .destructive) { libraryToDelete = library }
+        }
+    }
+
+    private func leaveAction(_ library: LibraryInfo) -> some View {
+        Button("Leave", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+            isWorking = true
+            Task {
+                defer { isWorking = false }
+                do { try await session.leave(library.id) } catch { errorMessage = error.localizedDescription }
+            }
         }
     }
 

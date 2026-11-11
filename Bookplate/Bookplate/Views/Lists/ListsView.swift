@@ -33,7 +33,8 @@ struct ListsView: View {
                                 onRemove: { book in
                                     withAnimation(.snappy) { store.setBook(book.id, inList: item.id, to: false) }
                                 },
-                                onDelete: { listToDelete = item.list }
+                                onDelete: { listToDelete = item.list },
+                                canEdit: store.canEdit
                             )
                         }
                     }
@@ -44,11 +45,13 @@ struct ListsView: View {
             .navigationTitle("Lists")
             .searchable(text: $query, prompt: "List, title, or author")
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showingAddList = true } label: {
-                        Image(systemName: "plus")
+                if store.canEdit {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button { showingAddList = true } label: {
+                            Image(systemName: "plus")
+                        }
+                        .accessibilityLabel("New list")
                     }
-                    .accessibilityLabel("New list")
                 }
             }
         }
@@ -88,9 +91,10 @@ struct ListsView: View {
                 .font(.subheadline)
                 .foregroundStyle(Theme.mutedText)
                 .multilineTextAlignment(.center)
-            Button("New List") { showingAddList = true }
+            if store.canEdit { Button("New List") { showingAddList = true }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.brown)
+            }
         }
         .padding(.top, 80)
         .padding(.horizontal, 24)
@@ -120,6 +124,8 @@ private struct ListCard: View {
     let onSelect: (Book) -> Void
     let onRemove: (Book) -> Void
     let onDelete: () -> Void
+    /// False in a library shared with you as View only.
+    var canEdit = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -173,14 +179,16 @@ private struct ListCard: View {
             .accessibilityLabel("\(item.list.name), \(bookCount)")
             .accessibilityHint(canCollapse ? (isExpanded ? "Collapses the list" : "Expands the list") : "")
 
-            Menu {
-                Button("Delete List", systemImage: "trash", role: .destructive, action: onDelete)
-            } label: {
-                Image(systemName: "ellipsis")
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
+            if canEdit {
+                Menu {
+                    Button("Delete List", systemImage: "trash", role: .destructive, action: onDelete)
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Actions for \(item.list.name)")
             }
-            .accessibilityLabel("Actions for \(item.list.name)")
         }
         .foregroundStyle(Theme.brown)
         .padding(.leading, 14)
@@ -212,13 +220,15 @@ private struct ListCard: View {
             }
             .buttonStyle(.plain)
 
-            Button { onRemove(book) } label: {
-                Image(systemName: "minus.circle.fill")
-                    .font(.body)
-                    .foregroundStyle(Theme.mutedText)
+            if canEdit {
+                Button { onRemove(book) } label: {
+                    Image(systemName: "minus.circle.fill")
+                        .font(.body)
+                        .foregroundStyle(Theme.mutedText)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove \(book.title) from \(item.list.name)")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Remove \(book.title) from \(item.list.name)")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

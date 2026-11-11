@@ -7,6 +7,9 @@ struct BookDetailView: View {
     @Environment(AuthService.self) private var auth: AuthService?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(LibrarySession.self) private var session: LibrarySession?
+    var bookCopying: BookCopying = SupabaseBookCopying()
+    @State private var copyResult: String?
 
     let bookId: String
     var imageStorage: ImageStorage = LocalImageStorage()
@@ -85,27 +88,73 @@ struct BookDetailView: View {
         }
     }
 
+    private var canChangeCover: Bool { store.library?.isOwned ?? true }
+
+    /// "Save to my library": copies a friend's book into one of your libraries.
+    @ViewBuilder private func saveCopyButton(_ source: LibraryInfo) -> some View {
+        let targets = session?.owned ?? []
+        Menu {
+            ForEach(targets) { target in
+                Button(target.name) { saveCopy(from: source, to: target) }
+            }
+        } label: {
+            Label("Save to My Library", systemImage: "square.and.arrow.down")
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+        } primaryAction: {
+            if targets.count == 1, let target = targets.first { saveCopy(from: source, to: target) }
+        }
+        .buttonStyle(.bordered)
+        .tint(Theme.brown)
+        .disabled(targets.isEmpty)
+        .alert("Save to My Library", isPresented: Binding(get: { copyResult != nil }, set: { if !$0 { copyResult = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(copyResult ?? "")
+        }
+    }
+
+    private func saveCopy(from source: LibraryInfo, to target: LibraryInfo) {
+        Task {
+            do throws(BookServiceError) {
+                try await bookCopying.saveCopy(of: bookId, from: source.id, to: target.id)
+                copyResult = "Saved to \u{201C}\(target.name)\u{201D} as Want to Read."
+            } catch {
+                copyResult = BookCopyProblem.message(for: error, target: target.name)
+            }
+        }
+    }
+
     // MARK: Sections
 
     private func content(_ book: Book, _ meta: BookMeta) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                if let owner = BookplateBanner.ownerName(auth?.user) {
+                if let owner = BookplateBanner.ownerName(auth?.user, library: store.library) {
                     BookplateBanner(name: owner, design: store.settings.bookplate, compact: true)
                 }
                 header(book, meta)
-                section("Status") { statusPicker(meta) }
-                section("Rating") { StarRating(rating: meta.rating, gold: Self.gold) { store.setRating($0, for: bookId) } }
-                section("Tags") { tags(meta) }
-                section("Lists") { lists() }
-                section("Notes") { notes(meta) }
-                section("Photos") { photos(meta) }
-
-                Button("Remove Book", role: .destructive) {
-                    if skipRemoveConfirmation { removeBook() } else { showingRemoveConfirmation = true }
+                if let library = store.library, !library.isOwned {
+                    saveCopyButton(library)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.top, 6)
+                // A library shared with you as View only: everything shows, nothing changes.
+                Group {
+                    section("Status") { statusPicker(meta) }
+                    section("Rating") { StarRating(rating: meta.rating, gold: Self.gold) { store.setRating($0, for: bookId) } }
+                    section("Tags") { tags(meta) }
+                    section("Lists") { lists() }
+                    section("Notes") { notes(meta) }
+                    section("Photos") { photos(meta) }
+                }
+                .disabled(!store.canEdit)
+
+                if store.canEdit {
+                    Button("Remove Book", role: .destructive) {
+                        if skipRemoveConfirmation { removeBook() } else { showingRemoveConfirmation = true }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 6)
+                }
             }
             .padding(16)
         }
@@ -117,7 +166,8 @@ struct BookDetailView: View {
                 BookCoverView(book: book, meta: meta)
                     .frame(width: 104)
                     .overlay(alignment: .bottomTrailing) {
-                        Menu {
+                        // Custom covers are stored in the owner's folder, so only the owner changes them.
+                        if canChangeCover { Menu {
                             coverMenu(hasCustomCover: meta.customCover != nil)
                         } label: {
                             Image(systemName: "camera.fill")
@@ -128,14 +178,16 @@ struct BookDetailView: View {
                                 .overlay(Circle().stroke(.white.opacity(0.8), lineWidth: 1.5))
                         }
                         .offset(x: 8, y: 8)
-                        .accessibilityLabel("Change cover")
+                        .accessibilityLabel("Change cover") }
                     }
-                Menu {
-                    coverMenu(hasCustomCover: meta.customCover != nil)
-                } label: {
-                    Text("Change Cover").font(.caption.weight(.semibold))
+                if canChangeCover {
+                    Menu {
+                        coverMenu(hasCustomCover: meta.customCover != nil)
+                    } label: {
+                        Text("Change Cover").font(.caption.weight(.semibold))
+                    }
+                    .padding(.top, 6)
                 }
-                .padding(.top, 6)
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(book.title)

@@ -13,6 +13,9 @@ final class LibraryStore {
     private(set) var settings: LibrarySettings
     /// Which library this is, when loaded from an account (nil for the sample library).
     private(set) var library: LibraryInfo?
+    /// False in a library shared with you as View only: every change to its books, shelves and lists
+    /// is ignored. Your own settings (goal, theme, bookplate) can still change.
+    var canEdit: Bool { library?.canEdit ?? true }
     /// Recent deletions, newest last, so they can be undone.
     private(set) var undoStack: [Deletion] = []
 
@@ -42,6 +45,7 @@ final class LibraryStore {
 
     /// Saves the one-copy cleanup from loading. Call after queueing any leftover changes from the last session.
     func saveOneCopyRepairs() {
+        guard canEdit else { return }
         for id in shelvesNeedingRepair {
             if let i = bookshelf.shelves.firstIndex(where: { $0.id == id }) { saveShelfBooks(at: i) }
         }
@@ -136,6 +140,7 @@ final class LibraryStore {
     /// Adds an empty shelf at the bottom of the bookcase. Returns nil, adding nothing, if the name can't be used.
     @discardableResult
     func addShelf(named name: String) -> Shelf? {
+        guard canEdit else { return nil }
         guard shelfNameProblem(name) == nil else { return nil }
         let shelf = Shelf(
             id: "shelf-\(UUID().uuidString.lowercased())",
@@ -150,6 +155,7 @@ final class LibraryStore {
     /// Renames a shelf (locked or not). Returns the problem, changing nothing, if the name can't be used.
     @discardableResult
     func renameShelf(_ shelfId: String, to name: String) -> ShelfNameProblem? {
+        guard canEdit else { return nil }
         guard let index = bookshelf.shelves.firstIndex(where: { $0.id == shelfId }) else { return nil }
         if let problem = shelfNameProblem(name, excluding: shelfId) { return problem }
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -162,6 +168,7 @@ final class LibraryStore {
     /// Moves a shelf (locked or not) to a new spot in the bookcase, clamped to the ends.
     /// Every shelf's position is saved, which also repairs positions that drifted (e.g. edits from two devices).
     func moveShelf(_ shelfId: String, to index: Int) {
+        guard canEdit else { return }
         guard let from = bookshelf.shelves.firstIndex(where: { $0.id == shelfId }) else { return }
         let to = min(max(index, 0), bookshelf.shelves.count - 1)
         guard to != from else { return }
@@ -194,6 +201,7 @@ final class LibraryStore {
     /// Returns false, changing nothing, when `shelfDeletion` doesn't allow it.
     @discardableResult
     func deleteShelf(_ shelfId: String) -> Bool {
+        guard canEdit else { return false }
         guard case .allowed(let target) = shelfDeletion(shelfId),
               let index = bookshelf.shelves.firstIndex(where: { $0.id == shelfId }) else { return false }
         let shelf = bookshelf.shelves[index]
@@ -215,6 +223,7 @@ final class LibraryStore {
     var allShelvesLocked: Bool { !bookshelf.shelves.isEmpty && bookshelf.shelves.allSatisfy(\.isLocked) }
 
     func setLocked(_ locked: Bool, onShelf shelfId: String) {
+        guard canEdit else { return }
         guard let index = bookshelf.shelves.firstIndex(where: { $0.id == shelfId }) else { return }
         guard bookshelf.shelves[index].isLocked != locked else { return }
         bookshelf.shelves[index].isLocked = locked
@@ -263,6 +272,7 @@ final class LibraryStore {
     /// Adds an empty list at the end. Returns nil, adding nothing, if the name can't be used.
     @discardableResult
     func addList(named name: String) -> BookList? {
+        guard canEdit else { return nil }
         guard listNameProblem(name) == nil else { return nil }
         let list = BookList(id: "list-\(UUID().uuidString.lowercased())",
                             name: name.trimmingCharacters(in: .whitespacesAndNewlines), bookIds: [])
@@ -271,6 +281,7 @@ final class LibraryStore {
     }
 
     func addList(_ list: BookList) {
+        guard canEdit else { return }
         lists.append(list)
         save(.saveList(list, position: lists.count - 1))
         if !list.bookIds.isEmpty { saveListBooks(at: lists.count - 1) }
@@ -278,6 +289,7 @@ final class LibraryStore {
 
     /// Deletes a list. Its books stay in the library.
     func deleteList(_ listId: String) {
+        guard canEdit else { return }
         guard let index = lists.firstIndex(where: { $0.id == listId }) else { return }
         lists.remove(at: index)
         save(.deleteList(id: listId))
@@ -312,6 +324,7 @@ final class LibraryStore {
 
     /// Adds a book to a list, or removes it.
     func setBook(_ bookId: String, inList listId: String, to isInList: Bool) {
+        guard canEdit else { return }
         guard book(withId: bookId) != nil, let index = lists.firstIndex(where: { $0.id == listId }) else { return }
         let present = lists[index].bookIds.contains(bookId)
         if isInList, !present {
@@ -344,6 +357,7 @@ final class LibraryStore {
     /// was started, finishing it records today (and a start date if there wasn't one), and moving back
     /// clears the dates that no longer apply.
     func setStatus(_ status: String, for bookId: String, now: Date = Date()) {
+        guard canEdit else { return }
         updateMeta(bookId) { meta in
             guard meta.status != status else { return }
             meta.status = status
@@ -391,16 +405,19 @@ final class LibraryStore {
 
     /// 1...5 stars, or nil to clear. Anything else is ignored.
     func setRating(_ rating: Int?, for bookId: String) {
+        guard canEdit else { return }
         guard rating == nil || (1...5).contains(rating!) else { return }
         updateMeta(bookId) { $0.rating = rating }
     }
 
     func setNotes(_ notes: String, for bookId: String) {
+        guard canEdit else { return }
         updateMeta(bookId) { $0.notes = notes.isEmpty ? nil : notes }
     }
 
     /// Adds a tag, ignoring blanks and tags the book already has (case-insensitive).
     func addTag(_ tag: String, to bookId: String) {
+        guard canEdit else { return }
         let tag = tag.trimmingCharacters(in: .whitespacesAndNewlines)
         updateMeta(bookId) { meta in
             guard !tag.isEmpty, !meta.tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) else { return }
@@ -409,20 +426,24 @@ final class LibraryStore {
     }
 
     func removeTag(_ tag: String, from bookId: String) {
+        guard canEdit else { return }
         updateMeta(bookId) { $0.tags.removeAll { $0 == tag } }
     }
 
     func addNotePhoto(_ url: URL, to bookId: String) {
+        guard canEdit else { return }
         updateMeta(bookId, local: true) { $0.notePhotos.append(url) }
     }
 
     func removeNotePhoto(_ url: URL, from bookId: String) {
+        guard canEdit else { return }
         updateMeta(bookId, local: true) { $0.notePhotos.removeAll { $0 == url } }
     }
 
     /// Sets the user's own cover for a book, or nil to go back to the official or generated cover.
     /// A local photo shows at once and is uploaded in the background (retried until it's saved).
     func setCustomCover(_ url: URL?, for bookId: String) {
+        guard canEdit else { return }
         guard let before = meta(for: bookId), before.customCover != url else { return }
         updateMeta(bookId, local: true) { $0.customCover = url }
         if let url {
@@ -435,6 +456,7 @@ final class LibraryStore {
     /// Removes a book everywhere: its details, its place on every shelf and every list.
     /// The server also deletes its stored custom cover; the local files stay so undo can bring them back.
     func removeBook(_ bookId: String) {
+        guard canEdit else { return }
         guard let book = book(withId: bookId) else { return }
         remember(.book(
             book, meta: meta(for: bookId),
@@ -491,6 +513,7 @@ final class LibraryStore {
     /// Restores the most recent deletion. Returns what was restored.
     @discardableResult
     func undoLastDeletion() -> Deletion? {
+        guard canEdit else { return nil }
         guard let deletion = undoStack.popLast() else { return nil }
         switch deletion.kind {
         case .shelf(let shelf, let index, let movedTo, let movedBookIds):
@@ -680,6 +703,7 @@ final class LibraryStore {
     /// Moves a book from one shelf to a spot on another, as one change. Neither shelf may be locked.
     @discardableResult
     func moveBook(_ bookId: String, from sourceId: String, toShelf targetId: String, at index: Int) -> Bool {
+        guard canEdit else { return false }
         guard sourceId != targetId else { return moveBook(bookId, onShelf: sourceId, to: index) }
         guard let source = bookshelf.shelves.firstIndex(where: { $0.id == sourceId }),
               let target = bookshelf.shelves.firstIndex(where: { $0.id == targetId }),
@@ -698,6 +722,7 @@ final class LibraryStore {
     /// Returns false when nothing changed (unknown or locked shelf, unknown book, or the book is already there).
     @discardableResult
     func moveBook(_ bookId: String, onShelf shelfId: String, to index: Int) -> Bool {
+        guard canEdit else { return false }
         guard let shelfIndex = bookshelf.shelves.firstIndex(where: { $0.id == shelfId }),
               !bookshelf.shelves[shelfIndex].isLocked,
               let from = bookshelf.shelves[shelfIndex].bookIds.firstIndex(of: bookId) else { return false }
@@ -714,6 +739,7 @@ final class LibraryStore {
     /// A locked or missing target falls back to the first unlocked shelf. Returns nil, adding nothing, when every shelf is locked.
     @discardableResult
     func addBook(title: String, author: String, pageCount: Int?, shelfId: String?) -> Book? {
+        guard canEdit else { return nil }
         guard !allShelvesLocked else { return nil }
         let author = author.trimmingCharacters(in: .whitespacesAndNewlines)
         let book = Book(
@@ -754,6 +780,7 @@ final class LibraryStore {
     /// Looks up an official cover (and a page count, if missing) for a book and saves what is found.
     /// Each book is only marked as tried once a lookup finishes, so a network failure is retried later.
     func fillCover(for bookId: String) async {
+        guard canEdit else { return }
         guard let book = books.first(where: { $0.id == bookId }),
               book.coverLookupAttempted != true,
               lookupsInFlight.insert(bookId).inserted else { return }
@@ -774,6 +801,7 @@ final class LibraryStore {
 
     /// Tries to find covers for existing books that have none, once each.
     func backfillCovers() async {
+        guard canEdit else { return }
         let ids = books.filter { $0.coverUrl == nil && $0.coverLookupAttempted != true }.map(\.id)
         for id in ids { await fillCover(for: id) }
     }
