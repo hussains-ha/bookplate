@@ -8,6 +8,7 @@ struct MainTabView: View {
         TabView {
             LibraryView()
                 .environment(\.palette, .of(store.bookshelf.appearance))
+                .environment(\.bookplateDesign, store.settings.bookplate)
                 .tabItem { Label("Library", systemImage: "books.vertical") }
             ListsView()
                 .tabItem { Label("Lists", systemImage: "list.bullet") }

@@ -4,6 +4,7 @@ import SwiftUI
 /// Everything about one book: its cover, the user's status, rating, notes, photos, tags and lists.
 struct BookDetailView: View {
     @Environment(LibraryStore.self) private var store
+    @Environment(AuthService.self) private var auth: AuthService?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
@@ -89,6 +90,9 @@ struct BookDetailView: View {
     private func content(_ book: Book, _ meta: BookMeta) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                if let owner = BookplateBanner.ownerName(auth?.user) {
+                    BookplateBanner(name: owner, design: store.settings.bookplate, compact: true)
+                }
                 header(book, meta)
                 section("Status") { statusPicker(meta) }
                 section("Rating") { StarRating(rating: meta.rating, gold: Self.gold) { store.setRating($0, for: bookId) } }

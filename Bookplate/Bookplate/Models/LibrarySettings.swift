@@ -9,4 +9,5 @@ struct LibrarySettings: Codable, Equatable, Sendable {
     var readingGoal: Int = defaultReadingGoal
     /// How the bookcase looks.
     var appearance: Bookshelf.Appearance = .classic
+    var bookplate = BookplateDesign()
 }

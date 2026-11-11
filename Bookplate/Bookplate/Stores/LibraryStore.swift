@@ -353,6 +353,14 @@ final class LibraryStore {
 
     // MARK: Settings
 
+    /// Saves the bookplate and shelf label design (phrase and label size kept within limits).
+    func setBookplate(_ design: BookplateDesign) {
+        let design = design.cleaned
+        guard settings.bookplate != design else { return }
+        settings.bookplate = design
+        save(.saveSettings(settings))
+    }
+
     /// Changes how the bookcase looks and saves it with the library's settings.
     func setAppearance(_ appearance: Bookshelf.Appearance) {
         bookshelf.appearance = appearance

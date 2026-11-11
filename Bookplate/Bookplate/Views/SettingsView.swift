@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AuthService.self) private var auth
     @Environment(LibraryStore.self) private var store
+    @State private var showingDesigner = false
 
     var body: some View {
         NavigationStack {
@@ -15,7 +16,11 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
                     .accessibilityLabel("Bookcase appearance")
-                    BookcaseSwatch(palette: .of(store.bookshelf.appearance))
+                    BookcaseSwatch(palette: .of(store.bookshelf.appearance), labelFont: store.settings.bookplate.shelfLabelFont())
+                    Button { showingDesigner = true } label: {
+                        LabeledContent("Bookplate", value: store.settings.bookplate.style.title)
+                    }
+                    .foregroundStyle(Theme.brown)
                 }
                 Section {
                     let export = store.csvExport
@@ -46,6 +51,10 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(Theme.background.ignoresSafeArea())
             .navigationTitle("Settings")
+            .sheet(isPresented: $showingDesigner) {
+                BookplateDesignerView(name: BookplateBanner.ownerName(auth.user), design: store.settings.bookplate)
+                    .environment(\.palette, .of(store.bookshelf.appearance))
+            }
         }
     }
 }
@@ -53,6 +62,7 @@ struct SettingsView: View {
 /// A small picture of the bookcase in the chosen appearance.
 private struct BookcaseSwatch: View {
     let palette: Palette
+    var labelFont: Font = .system(size: 9, weight: .bold)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -68,7 +78,7 @@ private struct BookcaseSwatch: View {
             .padding(.top, 8)
             HStack {
                 Text("Shelf")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(labelFont)
                     .foregroundStyle(palette.plateText)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1)
@@ -92,5 +102,5 @@ private struct BookcaseSwatch: View {
     SettingsView()
         .environment(LibraryStore.sample())
         .environment(AuthService(backend: PreviewAuthBackend(
-            account: AuthUser(id: UUID(), email: "reader@example.com", name: "Abigail"))))
+            account: AuthUser(id: UUID(), email: "reader@example.com", name: "Sam Reader"))))
 }
