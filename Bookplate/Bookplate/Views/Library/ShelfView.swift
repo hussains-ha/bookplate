@@ -221,7 +221,11 @@ struct ShelfView: View {
             .accessibilityAction(.escape, cancelRename)
         } else if !isEditable {
             HStack(spacing: 3) {
-                Image(systemName: "sparkles").accessibilityHidden(true)
+                if SmartShelf.isSmart(shelf.id) {
+                    Image(systemName: "sparkles").accessibilityHidden(true)
+                } else if shelf.isLocked {
+                    Image(systemName: "lock.fill").accessibilityLabel("Locked")
+                }
                 Text(shelf.name)
             }
             .font(design.shelfLabelFont())
@@ -230,7 +234,7 @@ struct ShelfView: View {
             .padding(.vertical, 1)
             .background(palette.plate.opacity(0.8), in: RoundedRectangle(cornerRadius: 1))
             .accessibilityElement(children: .combine)
-            .accessibilityHint("Smart shelf. Fills itself from each book's status and rating.")
+            .accessibilityHint(SmartShelf.isSmart(shelf.id) ? "Smart shelf. Fills itself from each book's status and rating." : "")
         } else {
             HStack(spacing: 3) {
                 if shelf.isLocked {

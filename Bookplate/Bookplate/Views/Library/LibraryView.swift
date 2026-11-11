@@ -9,6 +9,8 @@ struct LibraryView: View {
     @Environment(LibrarySession.self) private var session: LibrarySession?
     @State private var showingLibraries = false
     @State private var libraryToShare: LibraryInfo?
+    @State private var libraryToLeave: LibraryInfo?
+    @State private var leaveError: String?
 
     @State private var query = ""
     @State private var showingDesigner = false
@@ -66,12 +68,14 @@ struct LibraryView: View {
                 if isNarrowed, visibleShelves.isEmpty {
                     noMatches
                 } else {
-                    if let owner = BookplateBanner.ownerName(auth?.user) {
+                    if let owner = BookplateBanner.ownerName(auth?.user, library: store.library) {
                         Button { showingDesigner = true } label: {
                             BookplateBanner(name: owner, design: store.settings.bookplate)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityHint("Customize your bookplate")
+                        // A friend's library shows their plate; only your own opens the designer.
+                        .disabled(!store.isOwned)
+                        .accessibilityHint(store.isOwned ? "Customize your bookplate" : "")
                     }
                     bookcase
                 }
@@ -97,6 +101,23 @@ struct LibraryView: View {
             BookplateDesignerView(name: BookplateBanner.ownerName(auth?.user), design: store.settings.bookplate)
         }
         .sheet(item: $libraryToShare) { ShareLibraryView(library: $0) }
+        .alert("Leave \u{201C}\(libraryToLeave?.name ?? "")\u{201D}?",
+               isPresented: Binding(get: { libraryToLeave != nil }, set: { if !$0 { libraryToLeave = nil } }),
+               presenting: libraryToLeave) { library in
+            Button("Leave", role: .destructive) {
+                Task {
+                    do { try await session?.leave(library.id) } catch { leaveError = error.localizedDescription }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { library in
+            Text("You'll need \(library.ownerName ?? "the owner") to share it again to see it.")
+        }
+        .alert("Couldn't leave the library", isPresented: Binding(get: { leaveError != nil }, set: { if !$0 { leaveError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(leaveError ?? "")
+        }
         .sheet(isPresented: $showingAddBook) {
             AddBookView(defaultShelfId: store.defaultShelfId)
         }
@@ -189,7 +210,7 @@ struct LibraryView: View {
                     ShelfView(
                         shelf: shelf,
                         books: sort.apply(to: visible.books) { store.meta(for: $0.id)?.rating },
-                        isReorderEnabled: !isNarrowed && sort == .custom,
+                        isReorderEnabled: store.canEdit && !isNarrowed && sort == .custom,
                         onToggleLock: { store.setLocked(!shelf.isLocked, onShelf: shelf.id) },
                         onSelect: { selectedBook = $0 },
                         onMove: { bookId, to in store.moveBook(bookId, onShelf: shelf.id, to: to) },
@@ -202,7 +223,9 @@ struct LibraryView: View {
                             ? { withAnimation(.snappy) { store.moveShelf(shelf.id, to: index + 1) } } : nil,
                         onDelete: store.bookshelf.shelves.count > 1 ? { shelfToDelete = PendingDeletion(shelf: shelf, deletion: store.shelfDeletion(shelf.id)) } : nil,
                         sort: sort,
-                        onSort: { new in withAnimation(.snappy) { shelfSorts[shelf.id] = new == .custom ? nil : new } }
+                        onSort: { new in withAnimation(.snappy) { shelfSorts[shelf.id] = new == .custom ? nil : new } },
+                        // View only: no rename, move, lock or delete.
+                        isEditable: store.canEdit
                     )
                     .id(shelf.id)
                 }
@@ -224,14 +247,14 @@ struct LibraryView: View {
             Image(systemName: "books.vertical")
                 .font(.system(size: 44))
                 .foregroundStyle(palette.accent.opacity(0.6))
-            Text("Your library is empty")
+            Text(store.canEdit ? "Your library is empty" : "No books here yet")
                 .font(Theme.title(22))
                 .foregroundStyle(palette.accent)
-            Text("Add your first book to start filling your shelves.")
+            Text(store.canEdit ? "Add your first book to start filling your shelves." : "Books added to this shared library will show up here.")
                 .font(.subheadline)
                 .foregroundStyle(palette.mutedText)
                 .multilineTextAlignment(.center)
-            Button { showingAddBook = true } label: {
+            if store.canEdit { Button { showingAddBook = true } label: {
                 Label("Add a book", systemImage: "plus")
                     .font(.headline)
                     .foregroundStyle(.white)
@@ -239,7 +262,7 @@ struct LibraryView: View {
                     .padding(.vertical, 12)
                     .background(palette.accent, in: Capsule())
             }
-            .padding(.top, 4)
+            .padding(.top, 4) }
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -387,6 +410,12 @@ struct LibraryView: View {
             }
             .font(.footnote)
             .lineLimit(1)
+            if let library = session?.current, let detail = LibrariesView.detail(library) {
+                Label(detail, systemImage: "person.2")
+                    .font(.caption)
+                    .foregroundStyle(palette.mutedText)
+                    .lineLimit(1)
+            }
         }
         .padding(.top, 8)
     }
@@ -423,9 +452,16 @@ struct LibraryView: View {
             Spacer()
             if !store.isLibraryEmpty { zoomControl }
             Menu {
-                Button("New Shelf", systemImage: "rectangle.stack.badge.plus") { showingAddShelf = true }
+                if store.canEdit {
+                    Button("New Shelf", systemImage: "rectangle.stack.badge.plus") { showingAddShelf = true }
+                }
                 if let library = session?.current, library.isOwned {
                     Button("Share Library…", systemImage: "person.crop.circle.badge.plus") { libraryToShare = library }
+                }
+                if let library = session?.current, !library.isOwned {
+                    Button("Leave Library", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+                        libraryToLeave = library
+                    }
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -435,14 +471,16 @@ struct LibraryView: View {
                     .background(palette.accent.opacity(0.1), in: Circle())
             }
             .accessibilityLabel("Library options")
-            Button { showingAddBook = true } label: {
-                Image(systemName: "plus")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .frame(width: 40, height: 40)
-                    .background(palette.accent, in: Circle())
+            if store.canEdit {
+                Button { showingAddBook = true } label: {
+                    Image(systemName: "plus")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .frame(width: 40, height: 40)
+                        .background(palette.accent, in: Circle())
+                }
+                .accessibilityLabel("Add book")
             }
-            .accessibilityLabel("Add book")
         }
     }
 }

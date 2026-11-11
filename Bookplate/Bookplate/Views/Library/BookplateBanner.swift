@@ -6,6 +6,15 @@ struct BookplateBanner: View {
     var design = BookplateDesign()
     var compact = false
 
+    /// The plate's name for a library: the owner's for a library shared with you, otherwise yours.
+    static func ownerName(_ user: AuthUser?, library: LibraryInfo?) -> String? {
+        if let library, !library.isOwned {
+            guard let name = library.ownerName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return nil }
+            return name
+        }
+        return ownerName(user)
+    }
+
     /// The name to show for an account, or nil (no banner) when it has none.
     static func ownerName(_ user: AuthUser?) -> String? {
         guard let name = user?.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return nil }

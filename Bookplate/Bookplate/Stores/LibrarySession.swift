@@ -77,6 +77,14 @@ final class LibrarySession {
         owned.count > 1 && owned.contains { $0.id == id }
     }
 
+    /// Leaves a library shared with you. Opens your first library if it was open.
+    func leave(_ id: UUID) async throws(BookServiceError) {
+        guard shared.contains(where: { $0.id == id }) else { return }
+        try await directory.leave(id)
+        libraries.removeAll { $0.id == id }
+        if currentId == id { select(owned.first?.id) }
+    }
+
     /// Deletes one of your libraries and everything in it. Opens another if it was open.
     func delete(_ id: UUID) async throws(BookServiceError) {
         guard canDelete(id) else { return }
