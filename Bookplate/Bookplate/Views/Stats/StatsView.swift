@@ -103,6 +103,8 @@ private struct GoalCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Button("Change goal", action: onEdit)
                     .font(.subheadline.weight(.semibold))
+                    .buttonStyle(.bordered)
+                    .tint(Theme.brown)
                     .padding(.top, 2)
             }
             Spacer(minLength: 0)
@@ -116,8 +118,8 @@ private struct GoalCard: View {
     private var detail: String {
         if progress.isComplete { return "Goal reached. Nice reading!" }
         let books = progress.remaining == 1 ? "book" : "books"
-        let perMonth = progress.perMonth
-        let pace = perMonth.rounded() == perMonth ? String(Int(perMonth)) : String(format: "%.1f", perMonth)
+        // Whole books, rounded up so keeping pace reaches the goal.
+        let pace = String(Int(progress.perMonth.rounded(.up)))
         let months = progress.monthsLeft == 1 ? "this month" : "a month for \(progress.monthsLeft) months"
         return "\(progress.remaining) \(books) to go: about \(pace) \(months)."
     }
