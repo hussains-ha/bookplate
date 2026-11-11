@@ -91,7 +91,7 @@ struct BookDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 if let owner = BookplateBanner.ownerName(auth?.user) {
-                    BookplateBanner(name: owner, compact: true)
+                    BookplateBanner(name: owner, design: store.settings.bookplate, compact: true)
                 }
                 header(book, meta)
                 section("Status") { statusPicker(meta) }

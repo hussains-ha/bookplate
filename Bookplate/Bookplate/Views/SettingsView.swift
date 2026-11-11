@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AuthService.self) private var auth
     @Environment(LibraryStore.self) private var store
+    @State private var showingDesigner = false
 
     var body: some View {
         NavigationStack {
@@ -16,6 +17,10 @@ struct SettingsView: View {
                     .pickerStyle(.segmented)
                     .accessibilityLabel("Bookcase appearance")
                     BookcaseSwatch(palette: .of(store.bookshelf.appearance))
+                    Button { showingDesigner = true } label: {
+                        LabeledContent("Bookplate", value: store.settings.bookplate.style.title)
+                    }
+                    .foregroundStyle(Theme.brown)
                 }
                 Section {
                     let export = store.csvExport
@@ -46,6 +51,10 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(Theme.background.ignoresSafeArea())
             .navigationTitle("Settings")
+            .sheet(isPresented: $showingDesigner) {
+                BookplateDesignerView(name: BookplateBanner.ownerName(auth.user), design: store.settings.bookplate)
+                    .environment(\.palette, .of(store.bookshelf.appearance))
+            }
         }
     }
 }

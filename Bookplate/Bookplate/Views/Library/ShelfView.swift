@@ -28,6 +28,7 @@ struct ShelfView: View {
     @Environment(ShelfDrag.self) private var drag
     @Environment(\.bookcaseScale) private var scale
     @Environment(\.palette) private var palette
+    @Environment(\.bookplateDesign) private var design
 
     static let spacing: CGFloat = 2
     private static let rowPadding: CGFloat = 12
@@ -210,7 +211,7 @@ struct ShelfView: View {
                     cancelRename()
                 }
             }
-            .font(.system(size: 11, weight: .bold))
+            .font(design.shelfLabelFont(sizeOffset: 2))
             .foregroundStyle(palette.plateText)
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
@@ -223,7 +224,7 @@ struct ShelfView: View {
                 Image(systemName: "sparkles").accessibilityHidden(true)
                 Text(shelf.name)
             }
-            .font(.system(size: 9, weight: .bold))
+            .font(design.shelfLabelFont())
             .foregroundStyle(palette.plateText)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
@@ -237,7 +238,7 @@ struct ShelfView: View {
                 }
                 Text(shelf.name)
             }
-            .font(.system(size: 9, weight: .bold))
+            .font(design.shelfLabelFont())
             .foregroundStyle(palette.plateText)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)

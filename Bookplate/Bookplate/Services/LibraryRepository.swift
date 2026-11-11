@@ -107,15 +107,17 @@ struct SettingsRow: Codable, Equatable {
     var readingGoal: Int
     /// A `Bookshelf.Appearance` raw value. Unknown values (from a newer app) fall back to classic.
     var appearance: String
+    var bookplate: BookplateDesign
 
     enum CodingKeys: String, CodingKey {
         case readingGoal = "reading_goal"
-        case appearance
+        case appearance, bookplate
     }
 
     init(_ settings: LibrarySettings) {
         readingGoal = settings.readingGoal
         appearance = settings.appearance.rawValue
+        bookplate = settings.bookplate
     }
 
     /// Missing columns (an older row or select) fall back to the defaults.
@@ -123,10 +125,12 @@ struct SettingsRow: Codable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         readingGoal = try container.decodeIfPresent(Int.self, forKey: .readingGoal) ?? LibrarySettings.defaultReadingGoal
         appearance = try container.decodeIfPresent(String.self, forKey: .appearance) ?? Bookshelf.Appearance.classic.rawValue
+        bookplate = try container.decodeIfPresent(BookplateDesign.self, forKey: .bookplate) ?? BookplateDesign()
     }
 
     var settings: LibrarySettings {
-        LibrarySettings(readingGoal: readingGoal, appearance: Bookshelf.Appearance(rawValue: appearance) ?? .classic)
+        LibrarySettings(readingGoal: readingGoal, appearance: Bookshelf.Appearance(rawValue: appearance) ?? .classic,
+                        bookplate: bookplate)
     }
 }
 
@@ -228,7 +232,7 @@ struct SupabaseLibraryRepository: LibraryRepository {
             async let shelfBooks: [MembershipRow] = client.from("shelf_books").select("shelf_id,book_id,position").execute().value
             async let lists: [CollectionRow] = client.from("lists").select("id,name,position").execute().value
             async let listBooks: [MembershipRow] = client.from("list_books").select("list_id,book_id,position").execute().value
-            async let settings: [SettingsRow] = client.from("library_settings").select("reading_goal,appearance").execute().value
+            async let settings: [SettingsRow] = client.from("library_settings").select("reading_goal,appearance,bookplate").execute().value
             return try await LibrarySnapshot(books: books, metas: metas, shelves: shelves, shelfBooks: shelfBooks,
                                              lists: lists, listBooks: listBooks, settings: settings)
         }

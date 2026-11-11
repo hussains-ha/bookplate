@@ -7,6 +7,7 @@ struct LibraryView: View {
     @Environment(AuthService.self) private var auth: AuthService?
 
     @State private var query = ""
+    @State private var showingDesigner = false
     @State private var filter: LibraryFilter = .all
     /// Per-shelf display order for this session; missing means Custom.
     @State private var shelfSorts: [String: ShelfSort] = [:]
@@ -59,7 +60,11 @@ struct LibraryView: View {
                     noMatches
                 } else {
                     if let owner = BookplateBanner.ownerName(auth?.user) {
-                        BookplateBanner(name: owner)
+                        Button { showingDesigner = true } label: {
+                            BookplateBanner(name: owner, design: store.settings.bookplate)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Customize your bookplate")
                     }
                     bookcase
                 }
@@ -81,6 +86,9 @@ struct LibraryView: View {
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(palette.background.ignoresSafeArea())
+        .sheet(isPresented: $showingDesigner) {
+            BookplateDesignerView(name: BookplateBanner.ownerName(auth?.user), design: store.settings.bookplate)
+        }
         .sheet(isPresented: $showingAddBook) {
             AddBookView(defaultShelfId: store.defaultShelfId)
         }
