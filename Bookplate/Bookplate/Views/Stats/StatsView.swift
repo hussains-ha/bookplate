@@ -1,9 +1,16 @@
 import SwiftUI
 
-/// The Stats tab: this year's reading goal and library totals.
+/// The Stats tab: the reading goal and totals, the year's reading timeline, and insights.
 struct StatsView: View {
+    enum Page: String, CaseIterable, Identifiable {
+        case overview = "Overview", timeline = "Timeline", insights = "Insights"
+        var id: Self { self }
+    }
+
     @Environment(LibraryStore.self) private var store
     @State private var showingGoalEditor = false
+    @State private var page = Page.overview
+    @State private var selectedBook: Book?
 
     var body: some View {
         let stats = store.stats
@@ -11,12 +18,28 @@ struct StatsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    GoalCard(progress: progress) { showingGoalEditor = true }
-                    Text("Overview")
-                        .font(Theme.title(20))
-                        .foregroundStyle(Theme.brown)
-                        .padding(.top, 4)
-                    overview(stats)
+                    Picker("Section", selection: $page) {
+                        ForEach(Page.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    switch page {
+                    case .overview:
+                        GoalCard(progress: progress) { showingGoalEditor = true }
+                        overview(stats)
+                    case .timeline:
+                        let insights = store.insights()
+                        MonthlyChart(insights: insights)
+                        RecentReadsCard(reads: insights.recentReads) { selectedBook = $0 }
+                    case .insights:
+                        let insights = store.insights()
+                        RatingChart(distribution: insights.ratingDistribution)
+                        RankedCard(title: "Top authors", items: insights.topAuthors, empty: "No authors yet.")
+                        RankedCard(title: "Top tags", items: insights.topTags, empty: "No tags yet.",
+                                   showsPercent: true, prefix: "#")
+                        PagesCard(pages: insights.pages)
+                    }
                 }
                 .padding(16)
             }
@@ -24,6 +47,7 @@ struct StatsView: View {
             .navigationTitle("Stats")
         }
         .tint(Theme.brown)
+        .sheet(item: $selectedBook) { book in BookDetailView(bookId: book.id) }
         .sheet(isPresented: $showingGoalEditor) {
             GoalEditor(year: progress.year, goal: store.settings.readingGoal) { store.setReadingGoal($0) }
         }
