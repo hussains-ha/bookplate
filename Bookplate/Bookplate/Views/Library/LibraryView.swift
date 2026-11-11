@@ -2,6 +2,8 @@ import SwiftUI
 
 struct LibraryView: View {
     @Environment(LibraryStore.self) private var store
+    /// Optional so previews without an account still work.
+    @Environment(AuthService.self) private var auth: AuthService?
 
     @State private var query = ""
     @State private var filter: LibraryFilter = .all
@@ -55,6 +57,9 @@ struct LibraryView: View {
                 if isNarrowed, visibleShelves.isEmpty {
                     noMatches
                 } else {
+                    if let owner = BookplateBanner.ownerName(auth?.user) {
+                        BookplateBanner(name: owner)
+                    }
                     bookcase
                 }
             }

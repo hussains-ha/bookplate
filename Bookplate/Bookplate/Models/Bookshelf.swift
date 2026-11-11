@@ -16,8 +16,8 @@ struct Bookshelf: Codable, Identifiable, Hashable, Sendable {
 
 extension Bookshelf {
     static let mock = Bookshelf(
-        id: "bookshelf-abigail",
-        name: "Abigail's Library",
+        id: "bookshelf-sample",
+        name: "My Library",
         shelves: Shelf.mocks,
         appearance: .classic
     )
