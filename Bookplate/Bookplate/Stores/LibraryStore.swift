@@ -66,10 +66,11 @@ final class LibraryStore {
         return store
     }
 
-    /// Keeps the header in step when the open library is renamed.
-    func libraryRenamed(to name: String) {
-        bookshelf.name = name
-        library?.name = name
+    /// Keeps the header (and your access) in step when the open library is renamed or reshared.
+    func libraryUpdated(_ info: LibraryInfo) {
+        guard info.id == library?.id, info != library else { return }
+        bookshelf.name = info.name
+        library = info
     }
 
     var syncStatus: LibrarySync.Status { sync?.status ?? .idle }

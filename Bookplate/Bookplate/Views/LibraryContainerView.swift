@@ -8,6 +8,7 @@ struct SignedInLibraryView: View {
     var makeDirectory: ((UUID) -> LibraryDirectory) = { SupabaseLibraryDirectory(userId: $0) }
 
     @Environment(AuthService.self) private var auth
+    @Environment(\.scenePhase) private var scenePhase
     @State private var session: LibrarySession?
     @State private var phase = Phase.loading
     /// Titles of books that hadn't finished saving last time.
@@ -27,6 +28,10 @@ struct SignedInLibraryView: View {
             // First the list of libraries, then whichever one is open (again whenever it changes).
             .task(id: StartKey(user: user.id, attempt: attempt)) { await startSession() }
             .task(id: LoadKey(library: session?.currentId, attempt: attempt)) { await loadLibrary() }
+            // Libraries shared, unshared or renamed elsewhere show up when the app comes back.
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { try? await session?.refresh() } }
+            }
     }
 
     private struct StartKey: Equatable {
@@ -72,6 +77,9 @@ struct SignedInLibraryView: View {
                 .environment(store)
                 .id(store.library?.id)
                 .task { await store.backfillCovers() }
+                .onChange(of: session?.current) { _, info in
+                    if let info { store.libraryUpdated(info) }
+                }
                 // Signing out, switching accounts or switching libraries ends this library's saving.
                 .onDisappear { store.stopSync() }
                 .alert(Self.unsavedTitle(unsavedTitles.count), isPresented: Binding(

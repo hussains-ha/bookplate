@@ -39,7 +39,7 @@ struct ShareLibraryView: View {
                             if model.isWorking { Spacer(); ProgressView() }
                         }
                     }
-                    .disabled(email.trimmingCharacters(in: .whitespaces).isEmpty || model.isWorking)
+                    .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isWorking)
                 } header: {
                     Text("Invite a friend")
                 } footer: {
@@ -143,7 +143,8 @@ struct ShareLibraryView: View {
         Task {
             do throws(ShareProblem) {
                 try await model.invite(email: email, role: role)
-                invitedName = model.members.first { $0.email.caseInsensitiveCompare(email.trimmingCharacters(in: .whitespaces)) == .orderedSame }?.displayName ?? email
+                let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
+                invitedName = model.members.first { $0.email.caseInsensitiveCompare(trimmed) == .orderedSame }?.displayName ?? trimmed
                 self.email = ""
             } catch {
                 problem = error.message
@@ -152,6 +153,9 @@ struct ShareLibraryView: View {
     }
 
     private func perform(_ action: @escaping () async throws(BookServiceError) -> Void) {
+        // A new change replaces the last message, so an old error doesn't linger under the invite field.
+        problem = nil
+        invitedName = nil
         Task {
             do { try await action() } catch { problem = error.localizedDescription }
         }
