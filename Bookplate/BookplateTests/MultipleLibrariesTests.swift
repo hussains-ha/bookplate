@@ -147,8 +147,19 @@ struct MultipleLibrariesTests {
                                         coverLookup: NoCoverLookup(), library: home)
         #expect(store.bookshelf.name == "Home")
         #expect(store.library == home)
-        store.libraryRenamed(to: "Cabin")
+        var cabin = home
+        cabin.name = "Cabin"
+        store.libraryUpdated(cabin)
         #expect(store.bookshelf.name == "Cabin")
+        #expect(store.library?.name == "Cabin")
+        store.libraryUpdated(library("Elsewhere"))
+        #expect(store.bookshelf.name == "Cabin")
+    }
+
+    @Test func nameLengthCountsCodePointsLikeTheDatabase() {
+        let flags = String(repeating: "\u{1F1EF}\u{1F1F5}", count: 15) // 15 flags = 30 code points
+        #expect(LibraryInfo.nameProblem(flags, among: []) == nil)
+        #expect(LibraryInfo.nameProblem(flags + "\u{1F1EF}\u{1F1F5}" + "abcdefghi", among: []) == .tooLong)
     }
 
     @Test func scopedRowsCarryTheLibraryAndOwner() throws {

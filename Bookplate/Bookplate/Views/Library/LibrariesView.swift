@@ -49,6 +49,8 @@ struct LibrariesView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Theme.background.ignoresSafeArea())
+            // Picks up libraries shared with you (or renamed) since the app started.
+            .task { try? await session.refresh() }
             .navigationTitle("Libraries")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
