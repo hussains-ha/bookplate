@@ -54,8 +54,6 @@ final class AuthService {
         case loading
         case signedOut
         case signedIn(AuthUser)
-        /// "Skip to library (dev)": no account, no backend.
-        case bypassed
     }
 
     static let minimumPasswordLength = 6
@@ -74,7 +72,6 @@ final class AuthService {
     /// Follows the backend's session for the life of the app. Call once, from a `.task`.
     func observeSession() async {
         for await account in backend.accountChanges() {
-            if state == .bypassed && account == nil { continue }
             state = account.map(State.signedIn) ?? .signedOut
         }
         // The stream only ends if the backend shuts down; don't leave the spinner up forever.
@@ -108,16 +105,8 @@ final class AuthService {
     }
 
     func signOut() async {
-        if state == .bypassed {
-            state = .signedOut
-            return
-        }
         // Even if the server call fails, the SDK clears the local session and emits a sign-out.
         try? await backend.signOut()
-    }
-
-    func bypass() {
-        state = .bypassed
     }
 
     private static func isValidEmail(_ email: String) -> Bool {

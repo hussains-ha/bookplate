@@ -34,15 +34,10 @@ struct SettingsView: View {
                     Text("A CSV file with each book's shelf, status, dates, rating, notes and tags.")
                 }
                 Section("Account") {
-                    if let user = auth.user {
-                        if let name = user.name {
-                            LabeledContent("Name", value: name)
-                        }
-                        LabeledContent("Email", value: user.email ?? "—")
-                    } else {
-                        Text("Not signed in (dev skip)")
-                            .foregroundStyle(Theme.mutedText)
+                    if let name = auth.user?.name {
+                        LabeledContent("Name", value: name)
                     }
+                    LabeledContent("Email", value: auth.user?.email ?? "—")
                     Button("Sign out", role: .destructive) {
                         Task { await auth.signOut() }
                     }

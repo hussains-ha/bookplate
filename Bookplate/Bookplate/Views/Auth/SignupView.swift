@@ -2,7 +2,6 @@ import SwiftUI
 
 struct SignupView: View {
     var onSwitchToLogin: () -> Void
-    var onBypass: () -> Void
 
     @Environment(AuthService.self) private var auth
 
@@ -26,9 +25,7 @@ struct SignupView: View {
     }
 
     var body: some View {
-        VStack(spacing: 14) {
-            Spacer()
-
+        AuthScreen {
             AuthHeader(subtitle: "Create your library.")
 
             VStack(spacing: 12) {
@@ -58,14 +55,7 @@ struct SignupView: View {
                 .disabled(isWorking || error == .confirmationRequired)
             }
             .padding(.top, 24)
-
-            Spacer()
-
-            Button("Skip to library (dev)", action: onBypass)
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(Theme.brown)
-                .accessibilityIdentifier("bypassButton")
-
+        } footer: {
             HStack(spacing: 4) {
                 Text("Already have an account?").foregroundStyle(Theme.mutedText)
                 Button("Sign in", action: onSwitchToLogin)
@@ -74,10 +64,6 @@ struct SignupView: View {
             }
             .font(.footnote)
         }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.background.ignoresSafeArea())
         .onChange(of: [name, email, password, confirmPassword]) {
             if error == .confirmationRequired { error = nil }
         }
@@ -85,6 +71,6 @@ struct SignupView: View {
 }
 
 #Preview {
-    SignupView(onSwitchToLogin: {}, onBypass: {})
+    SignupView(onSwitchToLogin: {})
         .environment(AuthService(backend: PreviewAuthBackend()))
 }

@@ -14,15 +14,13 @@ struct RootView: View {
                     .background(Theme.background.ignoresSafeArea())
             case .signedOut:
                 if showingSignup {
-                    SignupView(onSwitchToLogin: { showingSignup = false }, onBypass: auth.bypass)
+                    SignupView(onSwitchToLogin: { showingSignup = false })
                 } else {
-                    LoginView(onSwitchToSignup: { showingSignup = true }, onBypass: auth.bypass)
+                    LoginView(onSwitchToSignup: { showingSignup = true })
                 }
             case .signedIn(let user):
                 SignedInLibraryView(user: user)
                     .id(user.id)
-            case .bypassed:
-                SampleLibraryView()
             }
         }
         .onChange(of: auth.state) { showingSignup = false }
@@ -32,5 +30,4 @@ struct RootView: View {
 #Preview {
     RootView()
         .environment(AuthService(backend: PreviewAuthBackend()))
-        .environment(LibraryStore.sample())
 }

@@ -88,3 +88,30 @@ extension View {
         #endif
     }
 }
+
+/// Lays out an auth screen: content anchored to the top, footer at the bottom of the screen.
+/// Nothing above the fields grows or shrinks, so the fields stay put when the keyboard opens
+/// (a tap on a field never lands on something that slid into its place).
+struct AuthScreen<Content: View, Footer: View>: View {
+    @ViewBuilder var content: Content
+    @ViewBuilder var footer: Footer
+
+    var body: some View {
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(spacing: 14) {
+                    content
+                    Spacer(minLength: 24)
+                    footer
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 48)
+                .padding(.bottom, 16)
+                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .background(Theme.background.ignoresSafeArea())
+    }
+}
