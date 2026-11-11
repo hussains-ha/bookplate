@@ -9,7 +9,8 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section {
-                    ShareLink(item: store.csvExport, preview: SharePreview("Bookplate Library.csv")) {
+                    let export = store.csvExport
+                    ShareLink(item: export, preview: SharePreview(export.fileName)) {
                         Label("Export spreadsheet", systemImage: "square.and.arrow.up")
                     }
                     .disabled(store.books.isEmpty)
@@ -33,6 +34,8 @@ struct SettingsView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background.ignoresSafeArea())
             .navigationTitle("Settings")
         }
     }
