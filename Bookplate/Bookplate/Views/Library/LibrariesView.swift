@@ -10,6 +10,7 @@ struct LibrariesView: View {
     @State private var libraryToDelete: LibraryInfo?
     @State private var errorMessage: String?
     @State private var isWorking = false
+    @State private var libraryToShare: LibraryInfo?
 
     /// The name prompt: a new library, or renaming one.
     private enum Naming: Identifiable {
@@ -81,6 +82,7 @@ struct LibrariesView: View {
         }
         .tint(Theme.brown)
         .presentationDetents([.medium, .large])
+        .sheet(item: $libraryToShare) { ShareLibraryView(library: $0) }
     }
 
     private func row(_ library: LibraryInfo) -> some View {
@@ -122,6 +124,8 @@ struct LibrariesView: View {
     }
 
     @ViewBuilder private func ownedActions(_ library: LibraryInfo) -> some View {
+        Button("Share…", systemImage: "person.crop.circle.badge.plus") { libraryToShare = library }
+            .tint(Theme.brown)
         Button("Rename", systemImage: "pencil") {
             name = library.name
             naming = .rename(library)

@@ -30,15 +30,32 @@ struct LibraryRow: Codable, Equatable {
     }
 }
 
+/// A `library_members` row as seen by the member.
+struct MembershipRoleRow: Decodable {
+    let libraryId: UUID
+    let role: String
+
+    enum CodingKeys: String, CodingKey {
+        case libraryId = "library_id"
+        case role
+    }
+}
+
 struct SupabaseLibraryDirectory: LibraryDirectory {
     let userId: UUID
     var client: SupabaseClient = SupabaseService.client
 
     func libraries() async throws(BookServiceError) -> [LibraryInfo] {
         try await run {
-            let rows: [LibraryRow] = try await client.from("libraries")
+            async let rows: [LibraryRow] = client.from("libraries")
                 .select("id,name,owner_id,owner_name,position").execute().value
-            return LibraryInfo.sorted(rows.map { $0.info(for: userId) })
+            // Your role in libraries shared with you.
+            async let memberships: [MembershipRoleRow] = client.from("library_members")
+                .select("library_id,role").eq("user_id", value: userId).execute().value
+            let roles = Dictionary(try await memberships.map { ($0.libraryId, $0.role) }, uniquingKeysWith: { a, _ in a })
+            return LibraryInfo.sorted(try await rows.map { row in
+                row.info(for: userId, access: roles[row.id] == "edit" ? .edit : .view)
+            })
         }
     }
 

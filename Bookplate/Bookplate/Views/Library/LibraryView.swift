@@ -8,6 +8,7 @@ struct LibraryView: View {
     /// Optional so previews without an account still work.
     @Environment(LibrarySession.self) private var session: LibrarySession?
     @State private var showingLibraries = false
+    @State private var libraryToShare: LibraryInfo?
 
     @State private var query = ""
     @State private var showingDesigner = false
@@ -95,6 +96,7 @@ struct LibraryView: View {
         .sheet(isPresented: $showingDesigner) {
             BookplateDesignerView(name: BookplateBanner.ownerName(auth?.user), design: store.settings.bookplate)
         }
+        .sheet(item: $libraryToShare) { ShareLibraryView(library: $0) }
         .sheet(isPresented: $showingAddBook) {
             AddBookView(defaultShelfId: store.defaultShelfId)
         }
@@ -422,6 +424,9 @@ struct LibraryView: View {
             if !store.isLibraryEmpty { zoomControl }
             Menu {
                 Button("New Shelf", systemImage: "rectangle.stack.badge.plus") { showingAddShelf = true }
+                if let library = session?.current, library.isOwned {
+                    Button("Share Library…", systemImage: "person.crop.circle.badge.plus") { libraryToShare = library }
+                }
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.headline)
