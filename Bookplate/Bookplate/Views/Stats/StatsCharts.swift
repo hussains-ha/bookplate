@@ -155,7 +155,7 @@ struct RatingChart: View {
                             .frame(width: 26, alignment: .trailing)
                     }
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(item.stars) stars")
+                    .accessibilityLabel(item.stars == 1 ? "1 star" : "\(item.stars) stars")
                     .accessibilityValue(item.count == 1 ? "1 book" : "\(item.count) books")
                 }
             }

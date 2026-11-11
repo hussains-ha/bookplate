@@ -16,7 +16,7 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
                     .accessibilityLabel("Bookcase appearance")
-                    BookcaseSwatch(palette: .of(store.bookshelf.appearance))
+                    BookcaseSwatch(palette: .of(store.bookshelf.appearance), labelFont: store.settings.bookplate.shelfLabelFont())
                     Button { showingDesigner = true } label: {
                         LabeledContent("Bookplate", value: store.settings.bookplate.style.title)
                     }
@@ -62,6 +62,7 @@ struct SettingsView: View {
 /// A small picture of the bookcase in the chosen appearance.
 private struct BookcaseSwatch: View {
     let palette: Palette
+    var labelFont: Font = .system(size: 9, weight: .bold)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -77,7 +78,7 @@ private struct BookcaseSwatch: View {
             .padding(.top, 8)
             HStack {
                 Text("Shelf")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(labelFont)
                     .foregroundStyle(palette.plateText)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1)

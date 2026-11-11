@@ -20,6 +20,8 @@ struct BookplateDesignerView: View {
             Form {
                 Section {
                     BookplateBanner(name: name ?? "Your Name", design: design)
+                        // Room for the tallest style, so the form doesn't jump when switching.
+                        .frame(minHeight: 96)
                         .padding(.vertical, 12)
                         .animation(.snappy, value: design)
                         .listRowBackground(Theme.background)
@@ -54,7 +56,8 @@ struct BookplateDesignerView: View {
                 Section("Shelf labels") {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                         ForEach(BookplateDesign.LabelFont.allCases, id: \.self) { font in
-                            let sample = BookplateDesign(labelFont: font, labelSize: design.labelSize)
+                            // A readable fixed size; the stepper below sets the real label size.
+                            let sample = BookplateDesign(labelFont: font, labelSize: 14)
                             choice(font.title, font: sample.shelfLabelFont(), selected: design.labelFont == font) {
                                 design.labelFont = font
                             }
