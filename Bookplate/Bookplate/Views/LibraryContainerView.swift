@@ -91,14 +91,3 @@ struct SignedInLibraryView: View {
         }
     }
 }
-
-/// "Skip to library (dev)": the bundled sample library, kept in memory only.
-struct SampleLibraryView: View {
-    @State private var store = LibraryStore.sample()
-
-    var body: some View {
-        MainTabView()
-            .environment(store)
-            .task { await store.backfillCovers() }
-    }
-}

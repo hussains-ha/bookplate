@@ -2,7 +2,6 @@ import SwiftUI
 
 struct LoginView: View {
     var onSwitchToSignup: () -> Void
-    var onBypass: () -> Void
 
     @Environment(AuthService.self) private var auth
 
@@ -25,9 +24,7 @@ struct LoginView: View {
     }
 
     var body: some View {
-        VStack(spacing: 14) {
-            Spacer()
-
+        AuthScreen {
             AuthHeader(subtitle: "Your library, on real shelves.")
 
             VStack(spacing: 12) {
@@ -76,14 +73,7 @@ struct LoginView: View {
                     .foregroundStyle(Theme.brown)
             }
             .padding(.top, 24)
-
-            Spacer()
-
-            Button("Skip to library (dev)", action: onBypass)
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(Theme.brown)
-                .accessibilityIdentifier("bypassButton")
-
+        } footer: {
             HStack(spacing: 4) {
                 Text("New to Bookplate?").foregroundStyle(Theme.mutedText)
                 Button("Create account", action: onSwitchToSignup)
@@ -92,14 +82,10 @@ struct LoginView: View {
             }
             .font(.footnote)
         }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.background.ignoresSafeArea())
     }
 }
 
 #Preview {
-    LoginView(onSwitchToSignup: {}, onBypass: {})
+    LoginView(onSwitchToSignup: {})
         .environment(AuthService(backend: PreviewAuthBackend()))
 }

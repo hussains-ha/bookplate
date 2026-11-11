@@ -128,22 +128,13 @@ struct AuthServiceTests {
         #expect(backend.signOutCount == 1)
     }
 
-    @Test func bypassSkipsBackendAndSignsOutLocally() async {
+    @Test func noSavedSessionStartsAtLogin() async {
         let auth = service()
-        auth.bypass()
-        #expect(auth.state == .bypassed)
-        await auth.signOut()
-        #expect(auth.state == .signedOut)
-        #expect(backend.signOutCount == 0)
-    }
-
-    @Test func bypassSurvivesSignedOutSession() async {
-        let auth = service()
-        auth.bypass()
         await observing(auth) {
             backend.emit(nil)
-            await Task.yield()
-            #expect(auth.state == .bypassed)
+            await settle(auth, to: .signedOut)
+            #expect(auth.state == .signedOut)
+            #expect(auth.user == nil)
         }
     }
 
