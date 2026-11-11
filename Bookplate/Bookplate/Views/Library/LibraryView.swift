@@ -54,7 +54,10 @@ struct LibraryView: View {
                     }
                     filterMenu
                 }
-                .authFieldStyle()
+                .padding(.horizontal, 14)
+                .frame(minHeight: 48)
+                .background(palette.field, in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(palette.fieldBorder))
 
                 if isNarrowed, visibleShelves.isEmpty {
                     noMatches

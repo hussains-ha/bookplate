@@ -9,6 +9,16 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                // First, so Sign out is never under the floating tab bar.
+                Section("Account") {
+                    if let name = auth.user?.name {
+                        LabeledContent("Name", value: name)
+                    }
+                    LabeledContent("Email", value: auth.user?.email ?? "—")
+                    Button("Sign out", role: .destructive) {
+                        Task { await auth.signOut() }
+                    }
+                }
                 Section("Appearance") {
                     Picker("Bookcase", selection: Binding(get: { store.bookshelf.appearance },
                                                           set: { store.setAppearance($0) })) {
@@ -16,6 +26,7 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
                     .accessibilityLabel("Bookcase appearance")
+                    .listRowSeparator(.hidden)
                     BookcaseSwatch(palette: .of(store.bookshelf.appearance), labelFont: store.settings.bookplate.shelfLabelFont())
                     Button { showingDesigner = true } label: {
                         LabeledContent("Bookplate", value: store.settings.bookplate.style.title)
@@ -32,15 +43,6 @@ struct SettingsView: View {
                     Text("Library")
                 } footer: {
                     Text("A CSV file with each book's shelf, status, dates, rating, notes and tags.")
-                }
-                Section("Account") {
-                    if let name = auth.user?.name {
-                        LabeledContent("Name", value: name)
-                    }
-                    LabeledContent("Email", value: auth.user?.email ?? "—")
-                    Button("Sign out", role: .destructive) {
-                        Task { await auth.signOut() }
-                    }
                 }
             }
             .scrollContentBackground(.hidden)
@@ -65,6 +67,7 @@ private struct BookcaseSwatch: View {
                 ForEach(Array(Theme.spineColors.prefix(7).enumerated()), id: \.offset) { index, color in
                     RoundedRectangle(cornerRadius: 1.5)
                         .fill(color)
+                        .overlay(RoundedRectangle(cornerRadius: 1.5).strokeBorder(palette.spineOutline, lineWidth: 0.75))
                         .frame(width: 12, height: [40, 34, 44, 38, 42, 30, 36][index])
                 }
                 Spacer()

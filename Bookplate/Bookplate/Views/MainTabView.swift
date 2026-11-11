@@ -17,7 +17,8 @@ struct MainTabView: View {
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }
-        .tint(Theme.brown)
+        // The tab bar follows the bookcase theme (walnut brown, maple brown or charcoal).
+        .tint(Palette.of(store.bookshelf.appearance).accent)
         .overlay(alignment: .top) { SyncBanner() }
     }
 }
