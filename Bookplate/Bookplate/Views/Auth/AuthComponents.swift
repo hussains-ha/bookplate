@@ -96,6 +96,12 @@ struct AuthScreen<Content: View, Footer: View>: View {
     @ViewBuilder var content: Content
     @ViewBuilder var footer: Footer
 
+    static func endEditing() {
+        #if os(iOS)
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        #endif
+    }
+
     var body: some View {
         GeometryReader { proxy in
             ScrollView {
@@ -108,9 +114,13 @@ struct AuthScreen<Content: View, Footer: View>: View {
                 .padding(.top, 48)
                 .padding(.bottom, 16)
                 .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+                // Inside the scroll view so it gets the taps: a tap on empty space hides the keyboard.
+                // Fields and buttons on top still take their own taps.
+                .background(Color.clear.contentShape(Rectangle()).onTapGesture { Self.endEditing() })
             }
-            .scrollBounceBehavior(.basedOnSize)
-            .scrollDismissesKeyboard(.interactively)
+            // Always draggable, so a swipe hides the keyboard and uncovers the footer even when everything fits.
+            .scrollBounceBehavior(.always)
+            .scrollDismissesKeyboard(.immediately)
         }
         .background(Theme.background.ignoresSafeArea())
     }
