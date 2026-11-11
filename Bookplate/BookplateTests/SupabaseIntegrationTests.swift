@@ -15,7 +15,10 @@ struct SupabaseIntegrationTests {
         let session = try await auth.signIn(email: env["BOOKPLATE_E2E_EMAIL"]!, password: env["BOOKPLATE_E2E_PASSWORD"]!)
         defer { Task { try? await auth.signOut() } }
 
-        let repo = SupabaseLibraryRepository(userId: session.user.id)
+        let directory = SupabaseLibraryDirectory(userId: session.user.id)
+        let library = try await directory.create(name: "Integration \(UUID().uuidString.prefix(8))", position: 99, ownerName: nil)
+        defer { Task { try? await directory.delete(library.id) } }
+        let repo = SupabaseLibraryRepository(user: session.user.id, library: library)
         let suffix = UUID().uuidString.lowercased()
         let book = Book(id: "book-\(suffix)", title: "Integration", authors: ["Tester"], pageCount: 10,
                         coverUrl: URL(string: "https://example.com/c.jpg"), isbn13: nil)
@@ -52,7 +55,7 @@ struct SupabaseIntegrationTests {
 
         // A repository bound to another account refuses to write.
         await #expect(throws: BookServiceError.notSignedIn) {
-            try await SupabaseLibraryRepository(userId: UUID()).apply(.saveBook(book))
+            try await SupabaseLibraryRepository(user: UUID(), library: library).apply(.saveBook(book))
         }
         // Unknown books are skipped when replacing a shelf's books.
         try await repo.apply(.setShelfBooks(shelfId: shelf.id, bookIds: ["book-ghost", other.id, book.id]))

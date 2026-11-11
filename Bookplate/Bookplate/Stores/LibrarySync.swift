@@ -145,8 +145,16 @@ private extension LibraryChange {
 struct PendingChangesFile {
     let fileURL: URL
 
+    /// Before #123 there was one library per user and one file for it. It now belongs to the
+    /// user's first library and is merged into that library's file the next time it opens.
     static func forUser(_ userId: UUID) throws -> PendingChangesFile {
         PendingChangesFile(fileURL: try LocalBookFiles.userFolder(userId).appendingPathComponent("pending-changes.json"))
+    }
+
+    /// One file per library, so a change is only ever sent to the library it was made in.
+    static func forLibrary(_ libraryId: UUID, user userId: UUID) throws -> PendingChangesFile {
+        PendingChangesFile(fileURL: try LocalBookFiles.userFolder(userId)
+            .appendingPathComponent("pending-\(libraryId.uuidString.lowercased()).json"))
     }
 
     /// Loads the saved changes. Entries that can't be decoded (e.g. written by an older version of
