@@ -5,6 +5,9 @@ struct LibraryView: View {
     @Environment(\.palette) private var palette
     /// Optional so previews without an account still work.
     @Environment(AuthService.self) private var auth: AuthService?
+    /// Optional so previews without an account still work.
+    @Environment(LibrarySession.self) private var session: LibrarySession?
+    @State private var showingLibraries = false
 
     @State private var query = ""
     @State private var showingDesigner = false
@@ -375,7 +378,8 @@ struct LibraryView: View {
             headerTopRow
             // Its own row, so the buttons above don't squeeze it.
             HStack(spacing: 4) {
-                Text("\(store.bookshelf.name) · \(store.books.count) \(store.books.count == 1 ? "book" : "books")")
+                libraryButton
+                Text("· \(store.books.count) \(store.books.count == 1 ? "book" : "books")")
                     .foregroundStyle(palette.mutedText)
                 if !store.isLibraryEmpty { shelvesMenu }
             }
@@ -383,6 +387,30 @@ struct LibraryView: View {
             .lineLimit(1)
         }
         .padding(.top, 8)
+    }
+
+    /// From the session, so a rename shows right away.
+    private var libraryName: String { session?.current?.name ?? store.bookshelf.name }
+
+    /// The open library's name; opens the Libraries sheet.
+    @ViewBuilder private var libraryButton: some View {
+        if let session {
+            Button { showingLibraries = true } label: {
+                HStack(spacing: 2) {
+                    Text(libraryName)
+                    Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
+                }
+                .foregroundStyle(palette.accent)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Library: \(libraryName)")
+            .accessibilityHint("Switch or manage libraries")
+            .sheet(isPresented: $showingLibraries) {
+                LibrariesView().environment(session)
+            }
+        } else {
+            Text(store.bookshelf.name).foregroundStyle(palette.mutedText)
+        }
     }
 
     private var headerTopRow: some View {

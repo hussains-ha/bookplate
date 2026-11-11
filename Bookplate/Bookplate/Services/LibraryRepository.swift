@@ -134,6 +134,25 @@ struct SettingsRow: Codable, Equatable {
     }
 }
 
+/// A row plus the library it belongs to and that library's owner (`library_id`, `user_id`).
+struct Scoped<Row: Encodable>: Encodable {
+    let row: Row
+    let libraryId: UUID
+    let ownerId: UUID
+
+    private enum Keys: String, CodingKey {
+        case libraryId = "library_id"
+        case ownerId = "user_id"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try row.encode(to: encoder)
+        var container = encoder.container(keyedBy: Keys.self)
+        try container.encode(libraryId, forKey: .libraryId)
+        try container.encode(ownerId, forKey: .ownerId)
+    }
+}
+
 /// A `shelves` or `lists` row.
 struct CollectionRow: Codable, Equatable {
     var id: String
@@ -214,25 +233,48 @@ extension LibrarySnapshot {
 // MARK: Supabase
 
 struct SupabaseLibraryRepository: LibraryRepository {
-    /// The account this library belongs to. Requests fail with `.notSignedIn` if a different
-    /// account is signed in, so one user's queued changes never land in another's library.
+    /// The signed-in account. Requests fail with `.notSignedIn` if a different account is signed in,
+    /// so one user's queued changes never land in another's library.
     let userId: UUID
-    var client: SupabaseClient = SupabaseService.client
+    /// The library this repository reads and writes.
+    let libraryId: UUID
+    /// Who owns the library. Rows are saved as theirs, even when a friend with edit access saves them.
+    let ownerId: UUID
+    var client: SupabaseClient
     var covers: CoverStorage?
     /// Where `uploadCover` finds the picked photo.
-    var imagesFolder: () throws -> URL = { try LocalImageStorage.folder() }
+    var imagesFolder: () throws -> URL
+
+    init(userId: UUID, libraryId: UUID, ownerId: UUID, client: SupabaseClient = SupabaseService.client,
+         covers: CoverStorage? = nil, imagesFolder: @escaping () throws -> URL = { try LocalImageStorage.folder() }) {
+        self.userId = userId
+        self.libraryId = libraryId
+        self.ownerId = ownerId
+        self.client = client
+        self.covers = covers
+        self.imagesFolder = imagesFolder
+    }
+
+    init(user userId: UUID, library: LibraryInfo) {
+        self.init(userId: userId, libraryId: library.id, ownerId: library.ownerId)
+    }
 
     private var coverStorage: CoverStorage { covers ?? SupabaseCoverStorage(client: client) }
 
+    /// A row tagged with this library and its owner.
+    private func scoped<Row: Encodable>(_ row: Row) -> Scoped<Row> {
+        Scoped(row: row, libraryId: libraryId, ownerId: ownerId)
+    }
+
     func loadLibrary() async throws(BookServiceError) -> LibrarySnapshot {
         try await run {
-            async let books: [BookRow] = client.from("books").select().order("created_at").execute().value
-            async let metas: [BookMetaRow] = client.from("book_meta").select().execute().value
-            async let shelves: [CollectionRow] = client.from("shelves").select("id,name,position,is_locked").execute().value
-            async let shelfBooks: [MembershipRow] = client.from("shelf_books").select("shelf_id,book_id,position").execute().value
-            async let lists: [CollectionRow] = client.from("lists").select("id,name,position").execute().value
-            async let listBooks: [MembershipRow] = client.from("list_books").select("list_id,book_id,position").execute().value
-            async let settings: [SettingsRow] = client.from("library_settings").select("reading_goal,appearance,bookplate").execute().value
+            async let books: [BookRow] = client.from("books").select().eq("library_id", value: libraryId).order("created_at").execute().value
+            async let metas: [BookMetaRow] = client.from("book_meta").select().eq("library_id", value: libraryId).execute().value
+            async let shelves: [CollectionRow] = client.from("shelves").select("id,name,position,is_locked").eq("library_id", value: libraryId).execute().value
+            async let shelfBooks: [MembershipRow] = client.from("shelf_books").select("shelf_id,book_id,position").eq("library_id", value: libraryId).execute().value
+            async let lists: [CollectionRow] = client.from("lists").select("id,name,position").eq("library_id", value: libraryId).execute().value
+            async let listBooks: [MembershipRow] = client.from("list_books").select("list_id,book_id,position").eq("library_id", value: libraryId).execute().value
+            async let settings: [SettingsRow] = client.from("library_settings").select("reading_goal,appearance,bookplate").eq("user_id", value: userId).execute().value
             return try await LibrarySnapshot(books: books, metas: metas, shelves: shelves, shelfBooks: shelfBooks,
                                              lists: lists, listBooks: listBooks, settings: settings)
         }
@@ -243,39 +285,39 @@ struct SupabaseLibraryRepository: LibraryRepository {
             switch change {
             case .saveBook(let book):
                 try await client.from("books")
-                    .upsert(BookRow(book), onConflict: "user_id,id", returning: .minimal).execute()
+                    .upsert(scoped(BookRow(book)), onConflict: "user_id,id", returning: .minimal).execute()
             case .deleteBook(let id):
-                try await client.from("books").delete().eq("id", value: id).execute()
+                try await client.from("books").delete().eq("library_id", value: libraryId).eq("id", value: id).execute()
                 // Best effort: a leftover cover file is harmless and unreachable by others.
-                try? await coverStorage.remove(path: CustomCoverPath.objectPath(userId: userId, bookId: id))
+                try? await coverStorage.remove(path: CustomCoverPath.objectPath(userId: ownerId, bookId: id))
             case .uploadCover(let bookId, let fileName):
                 guard let data = try? Data(contentsOf: imagesFolder().appendingPathComponent(fileName)) else { return }
-                try await coverStorage.upload(data, path: CustomCoverPath.objectPath(userId: userId, bookId: bookId))
-                let value = CustomCoverPath.columnValue(userId: userId, bookId: bookId,
+                try await coverStorage.upload(data, path: CustomCoverPath.objectPath(userId: ownerId, bookId: bookId))
+                let value = CustomCoverPath.columnValue(userId: ownerId, bookId: bookId,
                                                         version: CustomCoverPath.version(fileName: fileName))
                 try await client.from("book_meta").update(CustomCoverUpdate(customCover: value))
-                    .eq("book_id", value: bookId).execute()
+                    .eq("library_id", value: libraryId).eq("book_id", value: bookId).execute()
             case .deleteCover(let bookId):
-                try await coverStorage.remove(path: CustomCoverPath.objectPath(userId: userId, bookId: bookId))
+                try await coverStorage.remove(path: CustomCoverPath.objectPath(userId: ownerId, bookId: bookId))
                 try await client.from("book_meta").update(CustomCoverUpdate(customCover: nil))
-                    .eq("book_id", value: bookId).execute()
+                    .eq("library_id", value: libraryId).eq("book_id", value: bookId).execute()
             case .saveMeta(let meta):
                 try await client.from("book_meta")
-                    .upsert(BookMetaRow(meta), onConflict: "user_id,book_id", returning: .minimal).execute()
+                    .upsert(scoped(BookMetaRow(meta)), onConflict: "user_id,book_id", returning: .minimal).execute()
             case .saveShelf(let shelf, let position):
                 let row = CollectionRow(id: shelf.id, name: shelf.name, position: position, isLocked: shelf.isLocked)
-                try await client.from("shelves").upsert(row, onConflict: "user_id,id", returning: .minimal).execute()
+                try await client.from("shelves").upsert(scoped(row), onConflict: "user_id,id", returning: .minimal).execute()
             case .deleteShelf(let id):
-                try await client.from("shelves").delete().eq("id", value: id).execute()
+                try await client.from("shelves").delete().eq("library_id", value: libraryId).eq("id", value: id).execute()
             case .setShelfBooks(let shelfId, let bookIds):
-                try await client.rpc("set_shelf_books", params: SetBooksParams(id: shelfId, bookIds: bookIds, idKey: "p_shelf_id")).execute()
+                try await client.rpc("set_shelf_books", params: SetBooksParams(libraryId: libraryId, id: shelfId, bookIds: bookIds, idKey: "p_shelf_id")).execute()
             case .saveList(let list, let position):
                 let row = CollectionRow(id: list.id, name: list.name, position: position)
-                try await client.from("lists").upsert(row, onConflict: "user_id,id", returning: .minimal).execute()
+                try await client.from("lists").upsert(scoped(row), onConflict: "user_id,id", returning: .minimal).execute()
             case .deleteList(let id):
-                try await client.from("lists").delete().eq("id", value: id).execute()
+                try await client.from("lists").delete().eq("library_id", value: libraryId).eq("id", value: id).execute()
             case .setListBooks(let listId, let bookIds):
-                try await client.rpc("set_list_books", params: SetBooksParams(id: listId, bookIds: bookIds, idKey: "p_list_id")).execute()
+                try await client.rpc("set_list_books", params: SetBooksParams(libraryId: libraryId, id: listId, bookIds: bookIds, idKey: "p_list_id")).execute()
             case .saveSettings(let settings):
                 try await client.from("library_settings")
                     .upsert(SettingsRow(settings), onConflict: "user_id", returning: .minimal).execute()
@@ -285,7 +327,7 @@ struct SupabaseLibraryRepository: LibraryRepository {
 
     func books(titled title: String) async throws(BookServiceError) -> [Book] {
         try await run {
-            let rows: [BookRow] = try await client.from("books").select()
+            let rows: [BookRow] = try await client.from("books").select().eq("library_id", value: libraryId)
                 .ilike("title", pattern: Self.escapeLike(title)).execute().value
             return rows.map(\.book)
         }
@@ -311,12 +353,14 @@ struct SupabaseLibraryRepository: LibraryRepository {
     }
 
     private struct SetBooksParams: Encodable {
+        let libraryId: UUID
         let id: String
         let bookIds: [String]
         let idKey: String
 
         func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: AnyKey.self)
+            try container.encode(libraryId, forKey: AnyKey("p_library_id"))
             try container.encode(id, forKey: AnyKey(idKey))
             try container.encode(bookIds, forKey: AnyKey("p_book_ids"))
         }

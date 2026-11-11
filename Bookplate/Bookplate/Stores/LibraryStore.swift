@@ -11,6 +11,8 @@ final class LibraryStore {
     private(set) var bookshelf: Bookshelf
     private(set) var lists: [BookList] = []
     private(set) var settings: LibrarySettings
+    /// Which library this is, when loaded from an account (nil for the sample library).
+    private(set) var library: LibraryInfo?
     /// Recent deletions, newest last, so they can be undone.
     private(set) var undoStack: [Deletion] = []
 
@@ -48,12 +50,23 @@ final class LibraryStore {
 
     /// A signed-in user's library, loaded from Supabase. Covers and note photos come from the device.
     static func loaded(_ snapshot: LibrarySnapshot, userId: UUID, sync: LibrarySync,
-                       localFiles: LocalBookFiles?, coverLookup: CoverLookup? = nil) -> LibraryStore {
-        let bookshelf = Bookshelf(id: "bookshelf-\(userId.uuidString.lowercased())", name: "My Library",
+                       localFiles: LocalBookFiles?, coverLookup: CoverLookup? = nil,
+                       library: LibraryInfo? = nil) -> LibraryStore {
+        let bookshelf = Bookshelf(id: "bookshelf-\((library?.id ?? userId).uuidString.lowercased())",
+                                  name: library?.name ?? "My Library",
                                   shelves: snapshot.shelves, appearance: snapshot.settings.appearance)
-        return LibraryStore(books: snapshot.books, metas: localFiles?.apply(to: snapshot.metas) ?? snapshot.metas,
-                            bookshelf: bookshelf, lists: snapshot.lists, settings: snapshot.settings, coverLookup: coverLookup,
-                            sync: sync, localFiles: localFiles)
+        let store = LibraryStore(books: snapshot.books, metas: localFiles?.apply(to: snapshot.metas) ?? snapshot.metas,
+                                 bookshelf: bookshelf, lists: snapshot.lists, settings: snapshot.settings,
+                                 coverLookup: coverLookup, sync: sync, localFiles: localFiles)
+        store.library = library
+        return store
+    }
+
+    /// Keeps the header (and your access) in step when the open library is renamed or reshared.
+    func libraryUpdated(_ info: LibraryInfo) {
+        guard info.id == library?.id, info != library else { return }
+        bookshelf.name = info.name
+        library = info
     }
 
     var syncStatus: LibrarySync.Status { sync?.status ?? .idle }
