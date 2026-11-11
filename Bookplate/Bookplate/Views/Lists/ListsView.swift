@@ -87,7 +87,7 @@ struct ListsView: View {
             Text("No lists yet")
                 .font(Theme.title(22))
                 .foregroundStyle(Theme.brown)
-            Text("Make a list, then add books to it from a book's details.")
+            Text(store.canEdit ? "Make a list, then add books to it from a book's details." : "This library doesn't have any lists.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.mutedText)
                 .multilineTextAlignment(.center)
