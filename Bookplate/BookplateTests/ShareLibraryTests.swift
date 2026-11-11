@@ -62,6 +62,9 @@ struct ShareLibraryTests {
         #expect(ShareProblem.from(.rejected("self")) == .yourself)
         #expect(ShareProblem.from(.network) == .failed(BookServiceError.network.localizedDescription))
         #expect(ShareProblem.noAccount.message.contains("sign up"))
+        // Whole codes only: "itself" isn't "self".
+        #expect(ShareProblem.from(.rejected("row refers to itself")) == .failed(BookServiceError.rejected("row refers to itself").localizedDescription))
+        #expect(ShareProblem.from(.rejected("not_owner")) != .failed("not_owner"))
     }
 
     @Test func memberRowDecodes() throws {

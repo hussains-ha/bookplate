@@ -44,8 +44,12 @@ enum ShareProblem: Error, Equatable {
     /// The server's error codes from share_library().
     static func from(_ error: BookServiceError) -> ShareProblem {
         if case .rejected(let message) = error {
-            if message.contains("no_account") { return .noAccount }
-            if message.contains("self") { return .yourself }
+            // Match whole codes only, so words like "itself" in other errors don't count.
+            let codes = Set(message.split { !($0.isLetter || $0.isNumber || $0 == "_") }.map(String.init))
+            if codes.contains("no_account") { return .noAccount }
+            if codes.contains("self") { return .yourself }
+            if codes.contains("not_owner") { return .failed("Only the library's owner can share it.") }
+            if codes.contains("invalid_role") { return .failed("Choose Can view or Can edit.") }
         }
         return .failed(error.localizedDescription)
     }
@@ -172,6 +176,7 @@ final class ShareModel {
         if let member = members.first(where: { $0.email.caseInsensitiveCompare(email) == .orderedSame }) {
             throw .alreadyShared(member.displayName)
         }
+        guard !isWorking else { return }
         isWorking = true
         defer { isWorking = false }
         do {
@@ -181,17 +186,26 @@ final class ShareModel {
         }
     }
 
+    // One change at a time, so a slow reply can't overwrite the list with an older one.
     func setRole(_ role: LibraryMember.Role, for member: LibraryMember) async throws(BookServiceError) {
-        guard member.role != role else { return }
+        guard member.role != role, !isWorking else { return }
+        isWorking = true
+        defer { isWorking = false }
         members = try await sharing.share(libraryId, withEmail: member.email, role: role)
     }
 
     func remove(_ member: LibraryMember) async throws(BookServiceError) {
+        guard !isWorking else { return }
+        isWorking = true
+        defer { isWorking = false }
         try await sharing.remove(member.userId, from: libraryId)
         members.removeAll { $0.userId == member.userId }
     }
 
     func stopSharing() async throws(BookServiceError) {
+        guard !isWorking else { return }
+        isWorking = true
+        defer { isWorking = false }
         try await sharing.stopSharing(libraryId)
         members = []
     }
