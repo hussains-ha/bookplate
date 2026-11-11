@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Account details and sign-out. The rest of Settings comes later.
+/// Library export, account details and sign-out.
 struct SettingsView: View {
     @Environment(AuthService.self) private var auth
     @Environment(LibraryStore.self) private var store
@@ -17,6 +17,17 @@ struct SettingsView: View {
                     .accessibilityLabel("Bookcase appearance")
                     BookcaseSwatch(palette: .of(store.bookshelf.appearance))
                 }
+                Section {
+                    let export = store.csvExport
+                    ShareLink(item: export, preview: SharePreview(export.fileName)) {
+                        Label("Export spreadsheet", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(store.books.isEmpty)
+                } header: {
+                    Text("Library")
+                } footer: {
+                    Text("A CSV file with each book's shelf, status, dates, rating, notes and tags.")
+                }
                 Section("Account") {
                     if let user = auth.user {
                         if let name = user.name {
@@ -32,6 +43,8 @@ struct SettingsView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background.ignoresSafeArea())
             .navigationTitle("Settings")
         }
     }
