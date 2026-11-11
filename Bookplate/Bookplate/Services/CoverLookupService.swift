@@ -24,7 +24,8 @@ nonisolated struct URLSessionHTTPClient: HTTPClient {
     }
 }
 
-/// Finds covers on Open Library (by ISBN) and Google Books (by title and author).
+/// Finds covers on Open Library (by ISBN), then Google Books (by title and author), then Open Library's
+/// title/author search when Google has no cover or is unavailable (its free daily quota runs out).
 struct CoverLookupService: CoverLookup {
     var client: HTTPClient = URLSessionHTTPClient()
 
@@ -32,7 +33,18 @@ struct CoverLookupService: CoverLookup {
         if let isbn, !isbn.isEmpty, let url = Self.openLibraryURL(isbn: isbn), try await exists(url) {
             return CoverLookupResult(coverURL: url, pageCount: nil)
         }
-        return try await googleBooksResult(title: title, author: author)
+        let google: CoverLookupResult?
+        do {
+            google = try await googleBooksResult(title: title, author: author)
+        } catch {
+            if let found = try? await openLibrarySearchResult(title: title, author: author) { return found }
+            throw error
+        }
+        if google?.coverURL != nil { return google }
+        if let found = try? await openLibrarySearchResult(title: title, author: author) {
+            return CoverLookupResult(coverURL: found.coverURL, pageCount: google?.pageCount ?? found.pageCount)
+        }
+        return google
     }
 
     // MARK: URLs
@@ -50,6 +62,20 @@ struct CoverLookupService: CoverLookup {
             URLQueryItem(name: "maxResults", value: "1"),
         ]
         return components?.url
+    }
+
+    static func openLibrarySearchURL(title: String, author: String?) -> URL? {
+        var components = URLComponents(string: "https://openlibrary.org/search.json")
+        var items = [URLQueryItem(name: "title", value: title)]
+        if let author, !author.isEmpty { items.append(URLQueryItem(name: "author", value: author)) }
+        items += [URLQueryItem(name: "limit", value: "1"),
+                  URLQueryItem(name: "fields", value: "cover_i,number_of_pages_median")]
+        components?.queryItems = items
+        return components?.url
+    }
+
+    static func openLibraryCoverURL(id: Int) -> URL? {
+        URL(string: "https://covers.openlibrary.org/b/id/\(id)-L.jpg")
     }
 
     /// Google returns `http` thumbnails with a page-curl edge and a small zoom; ask for a clean, larger image.
@@ -91,6 +117,26 @@ struct CoverLookupService: CoverLookup {
         guard coverURL != nil || volume.pageCount != nil else { return nil }
         return CoverLookupResult(coverURL: coverURL, pageCount: volume.pageCount)
     }
+
+    /// The first Open Library search match with a cover, or nil.
+    private func openLibrarySearchResult(title: String, author: String?) async throws -> CoverLookupResult? {
+        guard let url = Self.openLibrarySearchURL(title: title, author: author) else { return nil }
+        let (data, response) = try await client.data(for: URLRequest(url: url))
+        guard let status = (response as? HTTPURLResponse)?.statusCode, (200..<300).contains(status) else {
+            throw URLError(.badServerResponse)
+        }
+        guard let doc = try JSONDecoder().decode(OpenLibrarySearchResponse.self, from: data).docs.first,
+              let id = doc.cover_i, let coverURL = Self.openLibraryCoverURL(id: id) else { return nil }
+        return CoverLookupResult(coverURL: coverURL, pageCount: doc.number_of_pages_median)
+    }
+}
+
+private struct OpenLibrarySearchResponse: Decodable {
+    struct Doc: Decodable {
+        let cover_i: Int?
+        let number_of_pages_median: Int?
+    }
+    let docs: [Doc]
 }
 
 private struct GoogleBooksResponse: Decodable {
