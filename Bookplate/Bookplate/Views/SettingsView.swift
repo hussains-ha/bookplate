@@ -92,5 +92,5 @@ private struct BookcaseSwatch: View {
     SettingsView()
         .environment(LibraryStore.sample())
         .environment(AuthService(backend: PreviewAuthBackend(
-            account: AuthUser(id: UUID(), email: "reader@example.com", name: "Abigail"))))
+            account: AuthUser(id: UUID(), email: "reader@example.com", name: "Sam Reader"))))
 }
