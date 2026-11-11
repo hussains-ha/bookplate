@@ -17,6 +17,7 @@ struct SpineView: View {
     @Environment(LibraryStore.self) private var store: LibraryStore?
 
     @Environment(\.bookcaseScale) private var scale
+    @Environment(\.palette) private var palette
 
     private var appearance: BookAppearance { BookAppearance(book: book) }
     private var status: String? { store?.meta(for: book.id)?.status }
@@ -48,6 +49,7 @@ struct SpineView: View {
         }
         .background(appearance.gradient)
         .clipShape(RoundedRectangle(cornerRadius: 2))
+        .overlay(RoundedRectangle(cornerRadius: 2).strokeBorder(palette.spineOutline, lineWidth: 1))
         .accessibilityElement()
         .accessibilityLabel(accessibilityText)
     }

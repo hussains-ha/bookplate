@@ -47,6 +47,20 @@ struct ThemeTests {
         #expect(contrast(p.accent, p.background) >= 4.5)
         #expect(contrast(p.mutedText, p.background) >= 3)
     }
+
+    @Test(arguments: Bookshelf.Appearance.allCases)
+    func searchFieldAndSpinesFitTheTheme(_ appearance: Bookshelf.Appearance) {
+        let p = Palette.of(appearance)
+        // Typed text and the placeholder stay readable on the themed field.
+        #expect(contrast(p.accent, p.field) >= 4.5)
+        #expect(contrast(p.mutedText, p.field) >= 3)
+        #expect(p.spineOutline != .clear)
+    }
+
+    @Test func searchFieldIsThemedPerAppearance() {
+        #expect(Palette.modern.field != Palette.classic.field)
+        #expect(Palette.maple.field != Palette.classic.field)
+    }
     #endif
 
     @Test func setAppearanceUpdatesTheBookcaseAndSaves() async throws {
