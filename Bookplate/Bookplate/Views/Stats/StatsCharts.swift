@@ -57,7 +57,16 @@ struct MonthlyChart: View {
                 }
             }
             .frame(height: 160)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Books finished each month")
+            .accessibilityValue(summary)
         }
+    }
+
+    private var summary: String {
+        let months = insights.finishedPerMonth.filter { $0.count > 0 }
+        guard !months.isEmpty else { return "None yet" }
+        return months.map { "\(Self.monthName($0.month)): \($0.count)" }.joined(separator: ", ")
     }
 
     static func monthLabel(_ month: Int) -> String {
@@ -115,30 +124,41 @@ struct RecentReadsCard: View {
     }
 }
 
-/// How many books have each star rating.
+/// How many books have each star rating, 5 stars first.
 struct RatingChart: View {
     let distribution: [LibraryInsights.RatingCount]
 
     var body: some View {
         let rated = distribution.reduce(0) { $0 + $1.count }
+        let most = Double(max(distribution.map(\.count).max() ?? 0, 1))
         StatsCard(title: "Ratings", subtitle: "\(rated) rated") {
-            Chart(distribution) { item in
-                BarMark(x: .value("Books", item.count), y: .value("Stars", "\(item.stars) ★"))
-                    .foregroundStyle(Theme.statusWant.gradient)
-                    .cornerRadius(3)
-                    .annotation(position: .trailing, spacing: 4) {
-                        Text("\(item.count)").font(.caption2.weight(.semibold)).foregroundStyle(Theme.brown)
+            VStack(spacing: 8) {
+                ForEach(distribution.reversed()) { item in
+                    HStack(spacing: 10) {
+                        Text("\(item.stars) ★")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(Theme.mutedText)
+                            .frame(width: 30, alignment: .leading)
+                        GeometryReader { proxy in
+                            Capsule().fill(Theme.statusWant.opacity(0.15))
+                                .overlay(alignment: .leading) {
+                                    if item.count > 0 {
+                                        Capsule().fill(Theme.statusWant)
+                                            .frame(width: max(proxy.size.width * Double(item.count) / most, 6))
+                                    }
+                                }
+                        }
+                        .frame(height: 10)
+                        Text("\(item.count)")
+                            .font(.caption.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(Theme.brown)
+                            .frame(width: 26, alignment: .trailing)
                     }
+                    .accessibilityElement(children: .ignore)
                     .accessibilityLabel("\(item.stars) stars")
-                    .accessibilityValue("\(item.count) books")
+                    .accessibilityValue(item.count == 1 ? "1 book" : "\(item.count) books")
+                }
             }
-            .chartXAxis(.hidden)
-            .chartXScale(domain: 0...max(distribution.map(\.count).max() ?? 0, 1) * 6 / 5 + 1)
-            .chartYScale(domain: (1...5).reversed().map { "\($0) ★" })
-            .chartYAxis {
-                AxisMarks { _ in AxisValueLabel().font(.caption).foregroundStyle(Theme.mutedText) }
-            }
-            .frame(height: 150)
         }
     }
 }
