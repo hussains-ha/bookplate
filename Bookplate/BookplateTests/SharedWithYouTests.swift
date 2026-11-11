@@ -32,6 +32,35 @@ struct SharedWithYouTests {
         return (store, repo, sync)
     }
 
+    // MARK: Review fixes
+
+    @Test func roleChangeUpdatesCanEdit() async throws {
+        let (store, _, _) = try await store(.view)
+        #expect(!store.canEdit)
+        var upgraded = try #require(store.library)
+        upgraded.access = .edit
+        store.libraryUpdated(upgraded)
+        #expect(store.canEdit)
+        #expect(!store.isOwned)
+    }
+
+    @Test func editorsCantSetCoversOrReuploadThemOnUndo() async throws {
+        let (store, _, _) = try await store(.edit)
+        store.setCustomCover(URL(fileURLWithPath: "/tmp/c.jpg"), for: "1")
+        #expect(store.meta(for: "1")?.customCover == nil)
+        // A cover that was already there is dropped on undo instead of uploading into the owner's folder.
+        let (owner, _, _) = try await self.store(.owner)
+        owner.setCustomCover(URL(fileURLWithPath: "/tmp/c.jpg"), for: "1")
+        #expect(owner.meta(for: "1")?.customCover != nil)
+        var asEditor = try #require(owner.library)
+        asEditor.access = .edit
+        owner.libraryUpdated(asEditor)
+        owner.removeBook("1")
+        _ = owner.undoLastDeletion()
+        #expect(owner.book(withId: "1") != nil)
+        #expect(owner.meta(for: "1")?.customCover == nil)
+    }
+
     // MARK: View only
 
     @Test func viewOnlyIgnoresEveryLibraryChange() async throws {

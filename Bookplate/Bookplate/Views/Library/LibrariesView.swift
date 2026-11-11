@@ -11,6 +11,7 @@ struct LibrariesView: View {
     @State private var errorMessage: String?
     @State private var isWorking = false
     @State private var libraryToShare: LibraryInfo?
+    @State private var libraryToLeave: LibraryInfo?
 
     /// The name prompt: a new library, or renaming one.
     private enum Naming: Identifiable {
@@ -46,7 +47,7 @@ struct LibrariesView: View {
                         ForEach(session.shared) { library in
                             row(library)
                                 .contextMenu { leaveAction(library) }
-                                .swipeActions { leaveAction(library) }
+                                .swipeActions(allowsFullSwipe: false) { leaveAction(library) }
                         }
                     }
                 }
@@ -78,6 +79,14 @@ struct LibrariesView: View {
                 Button("Cancel", role: .cancel) {}
             } message: { _ in
                 Text("Its books, shelves and lists are deleted too. This can't be undone.")
+            }
+            .alert("Leave \u{201C}\(libraryToLeave?.name ?? "")\u{201D}?",
+                   isPresented: Binding(get: { libraryToLeave != nil }, set: { if !$0 { libraryToLeave = nil } }),
+                   presenting: libraryToLeave) { library in
+                Button("Leave", role: .destructive) { leave(library) }
+                Button("Cancel", role: .cancel) {}
+            } message: { library in
+                Text("You'll need \(library.ownerName ?? "the owner") to share it again to see it.")
             }
             .alert("Couldn't save", isPresented: Binding(get: { errorMessage != nil },
                                                          set: { if !$0 { errorMessage = nil } })) {
@@ -143,11 +152,17 @@ struct LibrariesView: View {
 
     private func leaveAction(_ library: LibraryInfo) -> some View {
         Button("Leave", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-            isWorking = true
-            Task {
-                defer { isWorking = false }
-                do { try await session.leave(library.id) } catch { errorMessage = error.localizedDescription }
-            }
+            libraryToLeave = library
+        }
+        .disabled(isWorking)
+    }
+
+    private func leave(_ library: LibraryInfo) {
+        guard !isWorking else { return }
+        isWorking = true
+        Task {
+            defer { isWorking = false }
+            do { try await session.leave(library.id) } catch { errorMessage = error.localizedDescription }
         }
     }
 

@@ -10,6 +10,7 @@ struct BookDetailView: View {
     @Environment(LibrarySession.self) private var session: LibrarySession?
     var bookCopying: BookCopying = SupabaseBookCopying()
     @State private var copyResult: String?
+    @State private var isSavingCopy = false
 
     let bookId: String
     var imageStorage: ImageStorage = LocalImageStorage()
@@ -88,25 +89,29 @@ struct BookDetailView: View {
         }
     }
 
-    private var canChangeCover: Bool { store.library?.isOwned ?? true }
+    private var canChangeCover: Bool { store.isOwned }
 
     /// "Save to my library": copies a friend's book into one of your libraries.
     @ViewBuilder private func saveCopyButton(_ source: LibraryInfo) -> some View {
         let targets = session?.owned ?? []
-        Menu {
-            ForEach(targets) { target in
-                Button(target.name) { saveCopy(from: source, to: target) }
+        let label = Label("Save to My Library", systemImage: "square.and.arrow.down")
+            .font(.subheadline.weight(.semibold))
+            .frame(maxWidth: .infinity)
+        Group {
+            // One library: a plain button. Several: tapping opens a menu to pick which.
+            if targets.count == 1, let target = targets.first {
+                Button { saveCopy(from: source, to: target) } label: { label }
+            } else {
+                Menu {
+                    ForEach(targets) { target in
+                        Button(target.name) { saveCopy(from: source, to: target) }
+                    }
+                } label: { label }
             }
-        } label: {
-            Label("Save to My Library", systemImage: "square.and.arrow.down")
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-        } primaryAction: {
-            if targets.count == 1, let target = targets.first { saveCopy(from: source, to: target) }
         }
         .buttonStyle(.bordered)
         .tint(Theme.brown)
-        .disabled(targets.isEmpty)
+        .disabled(targets.isEmpty || isSavingCopy)
         .alert("Save to My Library", isPresented: Binding(get: { copyResult != nil }, set: { if !$0 { copyResult = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -115,7 +120,10 @@ struct BookDetailView: View {
     }
 
     private func saveCopy(from source: LibraryInfo, to target: LibraryInfo) {
+        guard !isSavingCopy else { return }
+        isSavingCopy = true
         Task {
+            defer { isSavingCopy = false }
             do throws(BookServiceError) {
                 try await bookCopying.saveCopy(of: bookId, from: source.id, to: target.id)
                 copyResult = "Saved to \u{201C}\(target.name)\u{201D} as Want to Read."
@@ -270,7 +278,20 @@ struct BookDetailView: View {
         }
     }
 
-    private func notes(_ meta: BookMeta) -> some View {
+    @ViewBuilder private func notes(_ meta: BookMeta) -> some View {
+        if !store.canEdit {
+            // Read-only: show all of a friend's notes instead of a clipped, disabled field.
+            Text(meta.notes?.isEmpty == false ? meta.notes! : "No notes")
+                .foregroundStyle(meta.notes?.isEmpty == false ? Theme.brown : Theme.mutedText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 12)
+                .authFieldStyle()
+        } else {
+            editableNotes(meta)
+        }
+    }
+
+    private func editableNotes(_ meta: BookMeta) -> some View {
         TextField("Personal notes", text: Binding(
             get: { meta.notes ?? "" },
             set: { store.setNotes($0, for: bookId) }

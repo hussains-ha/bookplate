@@ -16,6 +16,8 @@ final class LibraryStore {
     /// False in a library shared with you as View only: every change to its books, shelves and lists
     /// is ignored. Your own settings (goal, theme, bookplate) can still change.
     var canEdit: Bool { library?.canEdit ?? true }
+    /// Your own library (or the sample one). Custom covers and the bookplate designer are owner only.
+    var isOwned: Bool { library?.isOwned ?? true }
     /// Recent deletions, newest last, so they can be undone.
     private(set) var undoStack: [Deletion] = []
 
@@ -444,7 +446,7 @@ final class LibraryStore {
     /// Sets the user's own cover for a book, or nil to go back to the official or generated cover.
     /// A local photo shows at once and is uploaded in the background (retried until it's saved).
     func setCustomCover(_ url: URL?, for bookId: String) {
-        guard canEdit else { return }
+        guard isOwned else { return }
         guard let before = meta(for: bookId), before.customCover != url else { return }
         updateMeta(bookId, local: true) { $0.customCover = url }
         if let url {
@@ -562,7 +564,8 @@ final class LibraryStore {
                                     addedDate: Date(), startedDate: nil, finishedDate: nil)
         var restored = meta
         // The stored cover was deleted with the book: re-upload a local copy, or drop a cover that was only online.
-        if let cover = restored.customCover, !cover.isFileURL { restored.customCover = nil }
+        // Covers live in the owner's folder, so an editor of a shared library can't re-upload one: drop it.
+        if let cover = restored.customCover, !cover.isFileURL || !isOwned { restored.customCover = nil }
         metas.append(restored)
         save(.saveMeta(restored))
         if let cover = restored.customCover { save(.uploadCover(bookId: book.id, fileName: cover.lastPathComponent)) }

@@ -10,6 +10,7 @@ struct LibraryView: View {
     @State private var showingLibraries = false
     @State private var libraryToShare: LibraryInfo?
     @State private var libraryToLeave: LibraryInfo?
+    @State private var leaveError: String?
 
     @State private var query = ""
     @State private var showingDesigner = false
@@ -73,8 +74,8 @@ struct LibraryView: View {
                         }
                         .buttonStyle(.plain)
                         // A friend's library shows their plate; only your own opens the designer.
-                        .disabled(!(store.library?.isOwned ?? true))
-                        .accessibilityHint(store.library?.isOwned ?? true ? "Customize your bookplate" : "")
+                        .disabled(!store.isOwned)
+                        .accessibilityHint(store.isOwned ? "Customize your bookplate" : "")
                     }
                     bookcase
                 }
@@ -103,10 +104,19 @@ struct LibraryView: View {
         .alert("Leave \u{201C}\(libraryToLeave?.name ?? "")\u{201D}?",
                isPresented: Binding(get: { libraryToLeave != nil }, set: { if !$0 { libraryToLeave = nil } }),
                presenting: libraryToLeave) { library in
-            Button("Leave", role: .destructive) { Task { try? await session?.leave(library.id) } }
+            Button("Leave", role: .destructive) {
+                Task {
+                    do { try await session?.leave(library.id) } catch { leaveError = error.localizedDescription }
+                }
+            }
             Button("Cancel", role: .cancel) {}
         } message: { library in
             Text("You'll need \(library.ownerName ?? "the owner") to share it again to see it.")
+        }
+        .alert("Couldn't leave the library", isPresented: Binding(get: { leaveError != nil }, set: { if !$0 { leaveError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(leaveError ?? "")
         }
         .sheet(isPresented: $showingAddBook) {
             AddBookView(defaultShelfId: store.defaultShelfId)
